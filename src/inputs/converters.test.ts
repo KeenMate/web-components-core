@@ -18,8 +18,8 @@ describe('toEnum', () => {
     expect(c.validate!(3)).toBe(false);
   });
 
-  it('exposes its values and supports nullOnInvalid', () => {
-    const c = toEnum(SELECTION, { nullOnInvalid: true });
+  it('exposes its values and supports shouldNullOnInvalid', () => {
+    const c = toEnum(SELECTION, { shouldNullOnInvalid: true });
     expect(c.values).toEqual(SELECTION);
     expect(c.fromAttribute!('nope', reader(), 'x')).toBeNull();
   });
@@ -53,7 +53,7 @@ describe('toInt / toFloat', () => {
 
 describe('toText', () => {
   it('trims, guards empties, and falls back', () => {
-    const c = toText({ trim: true, default: 'Search...' });
+    const c = toText({ shouldTrim: true, default: 'Search...' });
     expect(c.fromAttribute!('  hi ', reader(), 'x')).toBe('hi');
     expect(c.fromAttribute!('   ', reader(), 'x')).toBe('Search...');
     expect(c.fromAttribute!(null, reader(), 'x')).toBe('Search...');
@@ -62,9 +62,36 @@ describe('toText', () => {
   });
 
   it('allows empty strings when told to', () => {
-    const c = toText({ allowEmpty: true });
+    const c = toText({ isEmptyAllowed: true });
     expect(c.fromAttribute!('', reader(), 'x')).toBe('');
     expect(c.validate!('')).toBe(true);
+  });
+
+  it('isNullable: absent/empty → null, distinguishing unset from empty', () => {
+    const c = toText({ isNullable: true, shouldTrim: true });
+    expect(c.fromAttribute!(null, reader(), 'x')).toBeNull();
+    expect(c.fromAttribute!('', reader(), 'x')).toBeNull();
+    expect(c.fromAttribute!('   ', reader(), 'x')).toBeNull();
+    expect(c.fromAttribute!('hi', reader(), 'x')).toBe('hi');
+    // property path: null clears, '' still rejected, real strings pass
+    expect(c.validate!(null)).toBe(true);
+    expect(c.validate!('')).toBe(false);
+    expect(c.validate!('ok')).toBe(true);
+    // reflection removes the attribute for the null sentinel
+    expect(c.toAttribute!(null)).toBeNull();
+    expect(c.toAttribute!('ok')).toBe('ok');
+  });
+
+  it('non-nullable still rejects null and seeds ""', () => {
+    const c = toText();
+    expect(c.fromAttribute!(null, reader(), 'x')).toBe('');
+    expect(c.validate!(null)).toBe(false);
+  });
+
+  it('isNullable honours an explicit default', () => {
+    const c = toText({ isNullable: true, default: 'fallback' });
+    expect(c.fromAttribute!(null, reader(), 'x')).toBe('fallback');
+    expect(c.fromAttribute!('', reader(), 'x')).toBe('fallback');
   });
 });
 
@@ -112,7 +139,7 @@ describe('toBytes', () => {
 
 describe('toList', () => {
   it('parses pipe-delimited fixed-count string lists', () => {
-    const c = toList({ of: 'string', sep: '|', count: 3 });
+    const c = toList({ itemType: 'string', separator: '|', requiredCount: 3 });
     expect(c.fromAttribute!('a|b|c', reader(), 'x')).toEqual(['a', 'b', 'c']);
     expect(c.fromAttribute!('a|b', reader(), 'x')).toEqual([]); // count mismatch → default
     expect(c.validate!(['a', 'b', 'c'])).toBe(true);
@@ -120,7 +147,7 @@ describe('toList', () => {
   });
 
   it('parses int lists and rejects NaN items', () => {
-    const c = toList({ of: 'int' });
+    const c = toList({ itemType: 'int' });
     expect(c.fromAttribute!('1,2,3', reader(), 'x')).toEqual([1, 2, 3]);
     expect(c.fromAttribute!('1,x,3', reader(), 'x')).toEqual([]);
     expect(c.validate!([1, 2])).toBe(true);

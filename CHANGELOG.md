@@ -44,6 +44,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `toText` gained an `isNullable` option: `toText({ isNullable: true })` resolves
+  an absent or empty attribute to `null` (an optional string) instead of `''`, so
+  callers can tell "unset" from "empty". `null` is the same absent-sentinel
+  `toEnum`'s `shouldNullOnInvalid` uses; `null` is accepted on the property path
+  (to clear), `''` is still rejected. Non-nullable `toText` is unchanged.
+  `isEmptyAllowed` and `isNullable` are orthogonal (keep `''` vs. set the unset
+  sentinel to `null`). Surfaced by the multiselect pseudo-migration, where ~20
+  attributes are `string | null`.
+- **Converter option names now follow the house boolean-naming convention**
+  (`is`/`should` prefixes, matching the components' own `isGroupsAllowed` /
+  `shouldKeepSearchOnClose`): `toText`/`toList` `trim` → `shouldTrim`, `toText`
+  `allowEmpty` → `isEmptyAllowed`, `toEnum` `nullOnInvalid` → `shouldNullOnInvalid`.
+  `toList`'s options were also spelled out for intent: `of` → `itemType`, `sep`
+  → `separator`, `count` → `requiredCount` (an exact fixed-length check; leaves
+  room for future `minRequiredCount` / `maxAllowedCount`). Remaining options
+  (`default`, `min`, `max`) are unchanged. Pre-1.0, applied without a
+  deprecation shim.
 - SPEC §6/§11.3: the single `applyConfig(partial)` hook was split into
   `reinit()` (full rebuild; first connect and any `on: 'reinit'` change) and
   `update(partial)` (in-place patch of changed `on: 'update'` keys). A batch that

@@ -135,13 +135,13 @@ Common cases stay one-liners; the converter is where "ensure the value is
 correct" is enforced. Naming: `to<Type>` — "convert the raw value to a …".
 
 ```ts
-toEnum(values, { default?, nullOnInvalid? })   // exact-match against the set; invalid → default (or null)
+toEnum(values, { default?, shouldNullOnInvalid? })  // exact-match against the set; invalid → default (or null)
 toInt({ min?, max?, default? })                // parse + range-check; NaN/out-of-range → default
 toFloat({ min?, max?, default? })
-toText({ trim?, allowEmpty?, default? })       // string  (NOT toString — collides with Object.prototype)
+toText({ shouldTrim?, isEmptyAllowed?, isNullable?, default? })  // string (NOT toString). isNullable:true → absent/empty is null (optional string), not ''
 toBool('presence' | 'default-true' | 'default-false' | 'tristate')
 toBytes({ default? })                          // "10mb" → 10485760
-toList({ of: 'string' | 'int', sep?, count? }) // CSV / pipe-list, with optional count validation
+toList({ itemType: 'string' | 'int', separator?, requiredCount? }) // CSV / pipe-list, with optional fixed-length validation
 toCustom(parseFn)                              // wrap any bespoke parser  (month-names, 'auto'|0..6)
 toFunction()                                   // callback: property-only, validates typeof === 'function'
 ```
@@ -253,7 +253,7 @@ is reactive — it resets that input to its `default` (absent == default).
   `bool-default-true` → `toBool('default-true')`; `setAttributes` batching
   → `BlissElement`.
 - **daterangepicker** — `parseEnum(CONST)` → `toEnum(CONST)`;
-  `parsePipeDelimitedList(12)` → `toList({of:'string', sep:'|', count:12})`;
+  `parsePipeDelimitedList(12)` → `toList({itemType:'string', separator:'|', requiredCount:12})`;
   `parseWeekStartDay` → `toCustom(parseWeekStartDay)`; tri-state →
   `toBool('tristate')`.
 - **treeview** — `{kind}` union → converters; its `field` column is why

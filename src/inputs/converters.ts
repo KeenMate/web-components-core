@@ -17,14 +17,14 @@ export interface EnumConverter<V extends string> extends Converter<V> {
  * Exact-match against a fixed set of strings.
  *
  * Invalid or absent values fall back to `default` — or to `null` when
- * `nullOnInvalid` is set.
+ * `shouldNullOnInvalid` is set.
  */
 export function toEnum<const T extends readonly string[]>(
   values: T,
-  opts: { default?: T[number]; nullOnInvalid?: boolean } = {},
+  opts: { default?: T[number]; shouldNullOnInvalid?: boolean } = {},
 ): EnumConverter<T[number]> {
   const set = new Set<string>(values);
-  const fallback = (opts.nullOnInvalid ? null : opts.default ?? null) as T[number];
+  const fallback = (opts.shouldNullOnInvalid ? null : opts.default ?? null) as T[number];
   return {
     values,
     fromAttribute(raw) {
@@ -83,19 +83,33 @@ export function toFloat(opts: { min?: number; max?: number; default?: number } =
 /**
  * String input. Named `toText` — NOT `toString` — to avoid colliding with
  * `Object.prototype.toString`. Empty strings fall back to `default` unless
- * `allowEmpty` is set.
+ * `isEmptyAllowed` is set.
+ *
+ * With `isNullable: true` the "unset" value is `null` instead of `''` — an
+ * absent or empty attribute resolves to `null`, so callers can distinguish
+ * "not set" from "set to empty" (an optional string). `null` is the same
+ * absent-sentinel `toEnum`'s `shouldNullOnInvalid` uses. To clear a nullable
+ * input via the property path, assign `null` (assigning `''` is still rejected,
+ * like non-nullable). `isEmptyAllowed` and `isNullable` are orthogonal: the
+ * former keeps `''` as a value; the latter sets the unset sentinel to `null`.
  */
-export function toText(opts: { trim?: boolean; allowEmpty?: boolean; default?: string } = {}): Converter<string> {
-  const fallback = opts.default ?? '';
-  const normalize = (s: string): string => (opts.trim ? s.trim() : s);
+export function toText(opts?: { shouldTrim?: boolean; isEmptyAllowed?: boolean; default?: string }): Converter<string>;
+export function toText(opts: { shouldTrim?: boolean; isEmptyAllowed?: boolean; isNullable: true; default?: string | null }): Converter<string | null>;
+export function toText(
+  opts: { shouldTrim?: boolean; isEmptyAllowed?: boolean; isNullable?: boolean; default?: string | null } = {},
+): Converter<string | null> {
+  const isNullable = opts.isNullable === true;
+  const fallback = opts.default ?? (isNullable ? null : '');
+  const normalize = (s: string): string => (opts.shouldTrim ? s.trim() : s);
   return {
     fromAttribute(raw) {
       if (raw === null) return fallback;
       const s = normalize(raw);
-      return !opts.allowEmpty && s === '' ? fallback : s;
+      return !opts.isEmptyAllowed && s === '' ? fallback : s;
     },
-    validate(value): value is string {
-      return typeof value === 'string' && (opts.allowEmpty === true || value !== '');
+    validate(value): value is string | null {
+      if (value === null) return isNullable;
+      return typeof value === 'string' && (opts.isEmptyAllowed === true || value !== '');
     },
     toAttribute(value) {
       return value == null ? null : String(value);
@@ -179,27 +193,27 @@ export function toBytes(opts: { default?: number } = {}): Converter<number> {
 
 /**
  * Delimited list (CSV / pipe-list) of strings or ints, with optional exact
- * `count` validation. A malformed item, or a length mismatch, falls back to
- * `default`.
+ * `requiredCount` validation. A malformed item, or a length mismatch, falls
+ * back to `default`.
  */
 export function toList<E extends string | number = string>(opts: {
-  of?: 'string' | 'int';
-  sep?: string;
-  count?: number;
-  trim?: boolean;
+  itemType?: 'string' | 'int';
+  separator?: string;
+  requiredCount?: number;
+  shouldTrim?: boolean;
   default?: E[];
 } = {}): Converter<E[]> {
-  const sep = opts.sep ?? ',';
-  const of = opts.of ?? 'string';
+  const separator = opts.separator ?? ',';
+  const itemType = opts.itemType ?? 'string';
   const fallback = opts.default ?? [];
   const parse = (raw: string): E[] | null => {
-    const parts = raw.split(sep).map((p) => (opts.trim === false ? p : p.trim()));
+    const parts = raw.split(separator).map((p) => (opts.shouldTrim === false ? p : p.trim()));
     let items: (string | number)[] = parts;
-    if (of === 'int') {
+    if (itemType === 'int') {
       items = parts.map((p) => Number.parseInt(p, 10));
       if (items.some((n) => Number.isNaN(n as number))) return null;
     }
-    if (opts.count != null && items.length !== opts.count) return null;
+    if (opts.requiredCount != null && items.length !== opts.requiredCount) return null;
     return items as E[];
   };
   return {
@@ -209,12 +223,12 @@ export function toList<E extends string | number = string>(opts: {
     },
     validate(value): value is E[] {
       if (!Array.isArray(value)) return false;
-      if (opts.count != null && value.length !== opts.count) return false;
-      const ok = of === 'int' ? (v: unknown) => typeof v === 'number' && Number.isInteger(v) : (v: unknown) => typeof v === 'string';
+      if (opts.requiredCount != null && value.length !== opts.requiredCount) return false;
+      const ok = itemType === 'int' ? (v: unknown) => typeof v === 'number' && Number.isInteger(v) : (v: unknown) => typeof v === 'string';
       return value.every(ok);
     },
     toAttribute(value) {
-      return Array.isArray(value) ? value.join(sep) : null;
+      return Array.isArray(value) ? value.join(separator) : null;
     },
   };
 }
