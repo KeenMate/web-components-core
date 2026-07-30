@@ -15,6 +15,7 @@
  */
 import { define } from '../element/define.js';
 import type { LoggerBundle, LogLevelDesc } from '../logging/create-loggers.js';
+import { attachLoggerBundle } from '../logging/logger-registry.js';
 import { getInstances } from './instances.js';
 
 /** Build/package metadata surfaced for runtime introspection. Extra keys are allowed. */
@@ -88,6 +89,9 @@ export function registerComponent<T extends HTMLElement = HTMLElement>(
   options: RegisterComponentOptions,
 ): RegisteredComponent<T> {
   const { config, logging, shouldAutoDefine = true } = options;
+  // Make the bundle discoverable by tag so BlissElement can build per-instance
+  // loggers (this.log) for elements of this tag (SPEC §12.3).
+  if (logging) attachLoggerBundle(tagName, logging);
   const entry: RegisteredComponent<T> = {
     version: () => config.version,
     config,

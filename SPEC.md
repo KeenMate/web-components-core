@@ -480,11 +480,18 @@ auto-registered while the rest did not. Core consolidates it:
   (Ctrl-Alt-C → list a tag's instances → act on one) enumerates tags via
   `window.components` + `getRegisteredTags()` and each tag's instances via
   `getInstances()`.
-
-**Open (follow-up):** per-instance logging ("enable logging for *this* one
-instance"). It needs logger calls to consult a per-instance flag — a change to
-the logging module + call sites — so it is deliberately NOT in this pass; the
-live-element handles are the seam a later pass builds on.
+- **Per-instance logging** — `BlissElement` exposes `this.log` (an instance
+  logger per category of the tag's `createLoggers` bundle, wired by
+  `registerComponent`'s `logging` option). Each line is prefixed with a `tag#n`
+  id and gated by the MORE verbose of the type-level category level and the
+  instance's own override, emitting via `console` directly so an instance can
+  log while its type stays silent. `element.enableLogging(level?)` /
+  `disableLogging()` / `isLoggingEnabled` are the overlay's per-instance switch:
+  pick one instance from `getInstances()`, flip it loud, leave the rest quiet.
+  Components should prefer `this.log.<CATEGORY>` over the shared type-level
+  loggers so this scoping works. `bundle.forInstance(id, getOverride)` is the
+  underlying factory; a tag→bundle map (`logger-registry.ts`) lets the element
+  base find its bundle by `localName`.
 
 ### 12.4 Other candidates (later modules)
 - **Typed event dispatch** — already in v1 (`dispatch()`); components'

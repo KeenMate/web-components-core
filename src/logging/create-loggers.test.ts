@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import * as log from 'loglevel';
-import { DEFAULT_CATEGORIES, createLoggers } from './create-loggers.js';
+import { DEFAULT_CATEGORIES, createLoggers, type LogLevelDesc } from './create-loggers.js';
 
 afterEach(() => {
   vi.restoreAllMocks();
@@ -56,6 +56,38 @@ describe('createLoggers', () => {
     bundle.setCategoryLevel('UI', 'trace');
     expect(bundle.loggers.UI.getLevel()).toBe(log.levels.TRACE);
     expect(bundle.loggers.INIT.getLevel()).toBe(log.levels.WARN); // unchanged
+  });
+
+  it('forInstance: instance override logs while the type stays silent', () => {
+    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const bundle = createLoggers('NSINST1');
+    bundle.disableLogging(); // type-level silent
+
+    let level: LogLevelDesc | undefined;
+    const inst = bundle.forInstance('web-x#1', () => level);
+
+    inst.DATA.debug('quiet'); // no override yet → suppressed
+    expect(spy).not.toHaveBeenCalled();
+
+    level = 'debug'; // overlay enables THIS instance
+    inst.DATA.debug('loud', { n: 1 });
+    expect(spy).toHaveBeenCalledOnce();
+    const args = spy.mock.calls[0]!;
+    expect(args[0]).toBe('%c[NSINST1:DATA]%c web-x#1');
+    expect(String(args[1])).toContain('color:');
+    expect(args[3]).toBe('loud');
+    expect(args[4]).toEqual({ n: 1 });
+  });
+
+  it('forInstance: type-level enable makes every instance log without an override', () => {
+    const spy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const bundle = createLoggers('NSINST2');
+    bundle.enableLogging(); // type-level debug
+
+    const inst = bundle.forInstance('web-y#2', () => undefined); // no override
+    inst.UI.info('hi');
+    expect(spy).toHaveBeenCalledOnce();
+    expect(spy.mock.calls[0]![0]).toBe('%c[NSINST2:UI]%c web-y#2');
   });
 
   it('does not double-wrap the prefix when called twice for the same name', () => {

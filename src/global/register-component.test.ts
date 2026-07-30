@@ -89,6 +89,41 @@ describe('live-instance registry', () => {
     expect(getRegisteredTags()).not.toContain(tag);
   });
 
+  it('per-instance logging: enableLogging() makes only that element loud', () => {
+    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const tag = freshTag();
+    // Expose this.log through a tiny method so the test can drive it.
+    class El extends BlissElement {
+      shout(): void {
+        this.log.DATA!.debug('hi');
+      }
+    }
+    const logging = createLoggers('PERINST', ['DATA']);
+    logging.disableLogging(); // type-level silent
+    registerComponent(tag, El as unknown as CustomElementConstructor, {
+      config: { name: 'x', version: '1' },
+      logging,
+    });
+
+    const a = document.createElement(tag) as unknown as El & { shout(): void; enableLogging(): void; disableLogging(): void };
+    const b = document.createElement(tag) as unknown as El & { shout(): void };
+    document.body.append(a as unknown as Node, b as unknown as Node);
+
+    a.shout();
+    b.shout();
+    expect(spy).not.toHaveBeenCalled(); // type silent, no overrides
+
+    a.enableLogging(); // overlay picks element a
+    a.shout();
+    b.shout();
+    expect(spy).toHaveBeenCalledOnce(); // only a
+    expect(spy.mock.calls[0]![0]!).toMatch(new RegExp(`^%c\\[PERINST:DATA\\]%c ${tag}#\\d+$`));
+
+    a.disableLogging();
+    a.shout();
+    expect(spy).toHaveBeenCalledOnce(); // back to silent
+  });
+
   it('a DOM move re-tracks the same instance without duplicating it', () => {
     const tag = freshTag();
     class El extends BlissElement {}

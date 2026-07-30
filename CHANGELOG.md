@@ -44,8 +44,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instances per tag (add on connect / remove on disconnect; a DOM move re-tracks
   without duplicating), exposed via `getInstances(tag)` / the entry's
   `getInstances()` and `getRegisteredTags()`. The returned elements are the
-  per-instance handles for a devtools overlay. Per-instance logging is a noted
-  follow-up (§12.3).
+  per-instance handles for a devtools overlay.
+- **Per-instance logging** (SPEC §12.3): `BlissElement` exposes `this.log` — an
+  instance logger per category of the tag's `createLoggers` bundle (wired by
+  `registerComponent`'s `logging` option), each line prefixed with a `tag#n` id
+  and gated by the more verbose of the type-level level and the instance's own
+  override. `element.enableLogging(level?)` / `disableLogging()` /
+  `isLoggingEnabled` toggle logging for ONE element while its type stays silent
+  — the Ctrl-Alt-C overlay case. New `LoggerBundle.forInstance(id, getOverride)`
+  factory and `InstanceLogger` type; components should prefer `this.log.<CAT>`
+  over the shared type-level loggers.
 - **Logging** (`src/logging/`, SPEC §12.1): `createLoggers(namespace, categories?)`
   returns categorized `NAMESPACE:CATEGORY` loggers over `loglevel`, each with a
   color-coded `%c` prefix; `DEFAULT_CATEGORIES` (`INIT/DATA/UI`), redefinable and

@@ -47,6 +47,61 @@ function applyColorPrefix(logger: Logger, label: string, color: string): void {
   logger.setLevel(logger.getLevel(), false);
 }
 
+/**
+ * An instance-scoped logger (SPEC §12.3): the same five level methods as a
+ * `loglevel` logger, but every line is prefixed with an instance id and gated by
+ * the MOST verbose of the type-level category level and the instance's own
+ * override. It emits via `console` directly (not through `loglevel`'s level
+ * gate), so an instance can log while its type stays silent — the mechanism
+ * behind "enable logging for THIS element" in a devtools overlay.
+ */
+export interface InstanceLogger {
+  trace(...args: unknown[]): void;
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+}
+
+/** Category metadata captured so {@link LoggerBundle.forInstance} can match colors/labels. */
+interface CategoryMeta {
+  label: string;
+  color: string;
+  logger: Logger;
+}
+
+/** Resolve a `loglevel` level descriptor (name or number) to its numeric value. */
+function toLevelNum(desc: LogLevelDesc): number {
+  if (typeof desc === 'number') return desc;
+  return log.levels[desc.toUpperCase() as keyof typeof log.levels] ?? log.levels.SILENT;
+}
+
+/** [method, its level, the `console` method to emit through]. `trace` uses `debug` to avoid stack spam. */
+const INSTANCE_METHODS: readonly [keyof InstanceLogger, number, 'debug' | 'info' | 'warn' | 'error'][] = [
+  ['trace', log.levels.TRACE, 'debug'],
+  ['debug', log.levels.DEBUG, 'debug'],
+  ['info', log.levels.INFO, 'info'],
+  ['warn', log.levels.WARN, 'warn'],
+  ['error', log.levels.ERROR, 'error'],
+];
+
+function makeInstanceLogger(meta: CategoryMeta, instanceId: string, getOverride: () => LogLevelDesc | undefined): InstanceLogger {
+  const css = `color:${meta.color};font-weight:bold`;
+  const idCss = 'color:#888';
+  const out = {} as Record<keyof InstanceLogger, (...args: unknown[]) => void>;
+  for (const [name, methodLevel, consoleMethod] of INSTANCE_METHODS) {
+    out[name] = (...args: unknown[]): void => {
+      const override = getOverride();
+      // Effective threshold = the more verbose (lower) of type level and override.
+      const effective = Math.min(meta.logger.getLevel(), override == null ? log.levels.SILENT : toLevelNum(override));
+      if (methodLevel < effective) return;
+      const emit = (console[consoleMethod] ?? console.log).bind(console);
+      emit(`%c[${meta.label}]%c ${instanceId}`, css, idCss, ...args);
+    };
+  }
+  return out as InstanceLogger;
+}
+
 export interface LoggerBundle<C extends string> {
   /** One logger per category, keyed by category name. */
   loggers: Record<C, Logger>;
@@ -58,6 +113,12 @@ export interface LoggerBundle<C extends string> {
   setLogLevel(level: LogLevelDesc): void;
   /** Set the level of one category. */
   setCategoryLevel(category: C, level: LogLevelDesc): void;
+  /**
+   * Build instance-scoped loggers (one per category) for a single element.
+   * `instanceId` prefixes each line; `getOverrideLevel` is read on every call,
+   * so toggling an instance's level takes effect live. Used by `BlissElement`.
+   */
+  forInstance(instanceId: string, getOverrideLevel: () => LogLevelDesc | undefined): Record<C, InstanceLogger>;
   /** The category list this bundle was built with. */
   readonly LOGGING_CATEGORIES: readonly C[];
 }
@@ -79,11 +140,15 @@ export function createLoggers<C extends string>(
   categories: readonly C[] = DEFAULT_CATEGORIES as readonly string[] as readonly C[],
 ): LoggerBundle<C> {
   const loggers = {} as Record<C, Logger>;
+  const meta = {} as Record<C, CategoryMeta>;
 
   categories.forEach((category, i) => {
-    const logger = log.getLogger(`${namespace}:${category}`);
-    applyColorPrefix(logger, `${namespace}:${category}`, PALETTE[i % PALETTE.length]!);
+    const label = `${namespace}:${category}`;
+    const color = PALETTE[i % PALETTE.length]!;
+    const logger = log.getLogger(label);
+    applyColorPrefix(logger, label, color);
     loggers[category] = logger;
+    meta[category] = { label, color, logger };
   });
 
   const setAll = (level: LogLevelDesc): void => {
@@ -104,6 +169,13 @@ export function createLoggers<C extends string>(
     },
     setCategoryLevel(category: C, level: LogLevelDesc) {
       loggers[category]?.setLevel(level, false);
+    },
+    forInstance(instanceId: string, getOverrideLevel: () => LogLevelDesc | undefined) {
+      const result = {} as Record<C, InstanceLogger>;
+      for (const category of categories) {
+        result[category] = makeInstanceLogger(meta[category], instanceId, getOverrideLevel);
+      }
+      return result;
     },
   };
 }

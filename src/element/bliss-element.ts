@@ -15,11 +15,23 @@ import { resolveFromAttribute, resolveFromProperty, type Resolved } from '../inp
 import type { AttrReader, InputDef } from '../inputs/types.js';
 import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microtask-scheduler.js';
 import { trackInstance, untrackInstance } from '../global/instances.js';
+import { getLoggerBundle } from '../logging/logger-registry.js';
+import type { InstanceLogger, LogLevelDesc } from '../logging/create-loggers.js';
 
 const Base = (typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown)) as typeof HTMLElement;
 
 /** Constructors whose input table has already been sanity-checked (once per class). */
 const VALIDATED = new WeakSet<object>();
+
+/** Monotonic per-element counter, purely for a readable `tag#n` log id. */
+let INSTANCE_SEQ = 0;
+
+/** One shared no-op logger for components whose tag has no attached bundle. */
+const NOOP_LOGGER: InstanceLogger = { trace() {}, debug() {}, info() {}, warn() {}, error() {} };
+const NOOP_LOGGERS: Record<string, InstanceLogger> = new Proxy(
+  {},
+  { get: () => NOOP_LOGGER },
+) as Record<string, InstanceLogger>;
 
 export abstract class BlissElement extends Base {
   /** The opt-in input table. Subclasses set this to enable attribute/property reactivity. */
@@ -38,6 +50,9 @@ export abstract class BlissElement extends Base {
   #pendingReinit = false;
   #connectedOnce = false;
   #reflecting = false;
+  #logId?: string;
+  #logLevel?: LogLevelDesc;
+  #instanceLoggers?: Record<string, InstanceLogger>;
 
   constructor() {
     super();
@@ -107,6 +122,42 @@ export abstract class BlissElement extends Base {
   /** The current validated config. */
   protected get config(): Readonly<Record<string, unknown>> {
     return this.#config;
+  }
+
+  /**
+   * Instance-scoped loggers, one per category of the bundle this component
+   * registered (via `registerComponent`'s `logging` option). Each line is
+   * prefixed with a `tag#n` id and gated by the more verbose of the type-level
+   * category level and this instance's own override — so a devtools overlay can
+   * make ONE element loud while its type stays quiet (SPEC §12.3). Returns
+   * no-op loggers when the tag has no attached bundle. Prefer this over the
+   * shared type-level loggers inside a component.
+   */
+  protected get log(): Record<string, InstanceLogger> {
+    if (this.#instanceLoggers) return this.#instanceLoggers;
+    const bundle = getLoggerBundle(this.localName);
+    if (!bundle) return NOOP_LOGGERS; // not memoized: a later registration can still take effect
+    const id = (this.#logId ??= `${this.localName}#${++INSTANCE_SEQ}`);
+    return (this.#instanceLoggers = bundle.forInstance(id, () => this.#logLevel));
+  }
+
+  /**
+   * Turn on verbose logging for THIS element only (default `debug`), independent
+   * of the type-level level. The seam a Ctrl-Alt-C overlay calls after the user
+   * picks one instance. Pairs with {@link disableLogging}.
+   */
+  enableLogging(level: LogLevelDesc = 'debug'): void {
+    this.#logLevel = level;
+  }
+
+  /** Clear this element's logging override (falls back to the type-level level). */
+  disableLogging(): void {
+    this.#logLevel = undefined;
+  }
+
+  /** Whether this element has an active logging override (not unset/`silent`). */
+  get isLoggingEnabled(): boolean {
+    return this.#logLevel != null && this.#logLevel !== 'silent' && this.#logLevel !== 5;
   }
 
   /**
