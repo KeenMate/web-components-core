@@ -23,6 +23,16 @@ export { dispatch } from './element/dispatch.js';
 export type { DispatchOptions } from './element/dispatch.js';
 export { define } from './element/define.js';
 
+// Global registration (window.components) + live-instance registry (SPEC §12.3)
+export { registerComponent } from './global/register-component.js';
+export type {
+  ComponentConfig,
+  ComponentLoggingControls,
+  RegisteredComponent,
+  RegisterComponentOptions,
+} from './global/register-component.js';
+export { getInstances, getRegisteredTags } from './global/instances.js';
+
 // Generic DOM utilities
 export { resolveEnumAttribute } from './dom/resolve-enum-attribute.js';
 export { createMicrotaskScheduler } from './dom/microtask-scheduler.js';

@@ -35,6 +35,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   throws) on a malformed `static inputs` table — duplicate `configKey`, duplicate
   `attribute`, `reflect: true` without an `attribute`, or `reflect: true` without
   `converter.toAttribute`.
+- **Global registration** (`src/global/`, SPEC §12.3): `registerComponent(tag,
+  elementClass, { config, logging?, shouldAutoDefine? })` publishes a component to
+  the `window.components` global, defines the element (idempotently, auto by
+  default), and flattens a `createLoggers()` bundle into the `logging` controls —
+  replacing the block every shipping component copy-pasted (and drifted). Paired
+  with a **live-instance registry**: `BlissElement` auto-tracks its connected
+  instances per tag (add on connect / remove on disconnect; a DOM move re-tracks
+  without duplicating), exposed via `getInstances(tag)` / the entry's
+  `getInstances()` and `getRegisteredTags()`. The returned elements are the
+  per-instance handles for a devtools overlay. Per-instance logging is a noted
+  follow-up (§12.3).
 - **Logging** (`src/logging/`, SPEC §12.1): `createLoggers(namespace, categories?)`
   returns categorized `NAMESPACE:CATEGORY` loggers over `loglevel`, each with a
   color-coded `%c` prefix; `DEFAULT_CATEGORIES` (`INIT/DATA/UI`), redefinable and

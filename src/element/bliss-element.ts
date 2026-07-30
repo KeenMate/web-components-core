@@ -14,6 +14,7 @@
 import { resolveFromAttribute, resolveFromProperty, type Resolved } from '../inputs/apply.js';
 import type { AttrReader, InputDef } from '../inputs/types.js';
 import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microtask-scheduler.js';
+import { trackInstance, untrackInstance } from '../global/instances.js';
 
 const Base = (typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown)) as typeof HTMLElement;
 
@@ -67,6 +68,9 @@ export abstract class BlissElement extends Base {
   }
 
   connectedCallback(): void {
+    // Track the live instance for the window.components registry (SPEC §12.3),
+    // before any build so a devtools overlay sees it even mid-reinit.
+    trackInstance(this.localName, this);
     if (!this.#connectedOnce) {
       this.#connectedOnce = true;
       // First connect is always a full build — there is nothing to patch yet.
@@ -77,6 +81,7 @@ export abstract class BlissElement extends Base {
   }
 
   disconnectedCallback(): void {
+    untrackInstance(this.localName, this);
     this.disconnect();
   }
 

@@ -455,7 +455,38 @@ Open: is the tooltip preset rich enough to also cover
 `follow-cursor` (multiselect `option-tooltip-follow-cursor`) via a
 `VirtualElement`, or is that a third preset?
 
-### 12.3 Other candidates (later modules)
+### 12.3 Global registration (`window.components`) — IMPLEMENTED (`src/global/`)
+
+**Status:** built. Every shipping component copy-pasted a
+`window.components[tag] = { version, config, logging, register, getInstances }`
+block, and it drifted five ways: instance tracking was a `Set` in three, a
+`querySelectorAll` in daterangepicker, and absent in grid; grid also dropped
+`register()`/`getInstances()`; treeview dropped `logging`; daterangepicker
+auto-registered while the rest did not. Core consolidates it:
+
+- **`registerComponent(tag, elementClass, { config, logging?, shouldAutoDefine? })`**
+  — publishes the entry to `window.components[tag]`, defines the element via the
+  idempotent `define()` (auto by default; `shouldAutoDefine: false` defers to the
+  exposed `register()`), and flattens a `createLoggers()` `LoggerBundle` into the
+  `logging` controls (`enableLogging`/`disableLogging`/`setLogLevel`/
+  `setCategoryLevel`/`getCategories`). Returns the entry (generic on the element
+  type). SSR-safe: the global write is skipped without `window`, `define()`
+  no-ops without `customElements`.
+- **Live-instance registry** — `BlissElement` adds itself to a per-tag `Set` on
+  connect and removes itself on disconnect (a DOM move re-tracks the same
+  element, no duplicate). `getInstances(tag)` returns the live elements; the
+  registry entry's `getInstances()` is wired to it. No per-component tracker.
+  The elements ARE the per-instance handles: a devtools overlay
+  (Ctrl-Alt-C → list a tag's instances → act on one) enumerates tags via
+  `window.components` + `getRegisteredTags()` and each tag's instances via
+  `getInstances()`.
+
+**Open (follow-up):** per-instance logging ("enable logging for *this* one
+instance"). It needs logger calls to consult a per-instance flag — a change to
+the logging module + call sites — so it is deliberately NOT in this pass; the
+live-element handles are the seam a later pass builds on.
+
+### 12.4 Other candidates (later modules)
 - **Typed event dispatch** — already in v1 (`dispatch()`); components'
   event-name constants could standardize.
 - **Theming / CSS cascade-layer helpers** — the `@layer` + `?inline`
