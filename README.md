@@ -1,0 +1,206 @@
+# @keenmate/web-components-core
+
+The shared foundation for KeenMate's web components. It consolidates the
+custom-element plumbing that five shipping components (`web-multiselect`,
+`web-daterangepicker`, `web-treeview`, `web-dropzone`, `web-grid`) each used to
+re-implement — a reactive input model, a base element class, converters,
+categorized logging, and the `window.components` global — into one package so
+that correctness lives in a single place and can't drift.
+
+> **`SPEC.md` is the source of truth** for design intent. This README is the tour;
+> read the relevant SPEC section before changing behavior.
+
+## Install
+
+```
+npm install @keenmate/web-components-core
+```
+
+Runtime dependency: **`loglevel`** only.
+
+## The two load-bearing ideas
+
+### 1. One reactive input table
+
+Every public input — attribute, complex property, or callback — is a single
+`InputDef` row. There is **no central switch statement**: dispatch is just
+`def.converter.fromAttribute(raw)`. A new input type is a new converter created
+anywhere (core or a component), never a core edit.
+
+```ts
+import { BlissElement, toEnum, toInt, toText, toFunction, type InputDef } from '@keenmate/web-components-core';
+
+const INPUTS: readonly InputDef[] = [
+  { configKey: 'selectionMode', attribute: 'selection-mode',
+    converter: toEnum(['single', 'multiple'], { default: 'single' }), on: 'reinit' },
+  { configKey: 'maxHeight', attribute: 'max-height',
+    converter: toText({ default: '20rem' }), on: 'update' },
+  { configKey: 'minSearchLength', attribute: 'min-search-length',
+    converter: toInt({ min: 0, default: 1 }), on: 'update' },
+  // property-only (no attribute): callbacks and rich data
+  { configKey: 'getValueCallback', converter: toFunction(), on: 'reinit' },
+];
+```
+
+Each row declares **what a change triggers** via `on`:
+
+- `update` — patch in place (default)
+- `reinit` — requires a full rebuild
+- `none` — store only, don't react (e.g. event callbacks)
+
+### 2. The `Converter<V>` owns parsing *and* validation
+
+One converter per input handles the attribute path (`fromAttribute`: raw string
+→ validated `V`), the property path (`validate`: is this JS-assigned value
+acceptable?), and optional reflection (`toAttribute`). Correctness lives in one
+place so it can't drift across the three spots it used to.
+
+The `to*` factory library sets both paths from the same inputs:
+
+| factory | for |
+| --- | --- |
+| `toEnum(values, { default?, shouldNullOnInvalid? })` | fixed string set |
+| `toInt({ min?, max?, default? })` / `toFloat(...)` | numbers |
+| `toText({ shouldTrim?, isEmptyAllowed?, isNullable?, default? })` | strings (`isNullable` → optional string, absent/empty ⇒ `null`) |
+| `toBool('presence' \| 'default-true' \| 'default-false' \| 'tristate')` | booleans |
+| `toBytes({ default? })` | human sizes (`"10mb"`) |
+| `toList({ itemType?, separator?, requiredCount?, shouldTrim?, default? })` | delimited lists |
+| `toCustom(parse, { validate?, toAttribute? })` | bespoke parsers |
+| `toFunction()` | property-only callbacks |
+
+> Boolean options follow the house convention (`is`/`should`/`has`/`can`
+> prefixes): `shouldTrim`, `isEmptyAllowed`, `isNullable`, `shouldNullOnInvalid`.
+
+## `BlissElement` — the base class
+
+`BlissElement` wires both entry points (attribute + property) through the *same*
+pipeline, so everything is reactive by construction. It is SSR-safe, computes
+`observedAttributes` from the input table, coalesces bursts into a single update,
+and provides typed `dispatch()`. The input table is **opt-in** — a subclass
+without `static inputs` still gets the SSR base + `dispatch`/`define`.
+
+```ts
+class WebMultiSelect extends BlissElement {
+  protected static override inputs = INPUTS;
+
+  protected override reinit() { /* full rebuild — reads this.config */ }
+  protected override update(partial: Record<string, unknown>) { /* patch just the changed keys */ }
+  protected override connect() { /* start listeners / observers / timers */ }
+  protected override disconnect() { /* stop what connect() started */ }
+}
+```
+
+**Lifecycle** (build-once + activate/deactivate, Lit's model):
+
+- **`reinit()`** — first connect, and any batch touching an `on: 'reinit'` input.
+  In a mixed batch, reinit dominates (it rebuilds from full `this.config`, so the
+  `update` partial is suppressed).
+- **`update(partial)`** — a batch with only `on: 'update'` changes.
+- **`connect()` / `disconnect()`** — every connect/disconnect, for live
+  resources. A DOM move re-activates **without rebuilding**, so transient UI
+  state survives. Keep them balanced.
+
+Batch many changes into one reinit/update with `setAttributes({ ... })` or
+`batch(() => { ... })`.
+
+## Global registration (`window.components`)
+
+`registerComponent` replaces the block every component used to copy-paste (and
+drift). It defines the element, publishes build metadata + logging controls to
+`window.components[tag]`, and wires `getInstances()` to the live-instance
+registry `BlissElement` maintains automatically (added on connect, removed on
+disconnect — a DOM move re-tracks without duplicating).
+
+```ts
+import { registerComponent, createLoggers } from '@keenmate/web-components-core';
+
+const logging = createLoggers('MULTISELECT'); // categories: INIT / DATA / UI
+
+registerComponent('web-multiselect', WebMultiSelect, {
+  config: { name: '@keenmate/web-multiselect', version: '1.0.0', author: 'KeenMate' },
+  logging,                 // optional — flattened onto the global entry
+  // shouldAutoDefine: true (default) — also exposes an idempotent register()
+});
+```
+
+From anywhere (console, a devtools overlay, server-rendered code):
+
+```js
+window.components['web-multiselect'].getInstances()        // live elements on the page
+window.components['web-multiselect'].version()             // build version
+window.components['web-multiselect'].logging.enableLogging()
+```
+
+The returned elements **are** the per-instance handles — enumerate tags with
+`getRegisteredTags()`, each tag's instances with `getInstances(tag)`.
+
+## Logging
+
+`createLoggers(namespace, categories?)` returns categorized
+`NAMESPACE:CATEGORY` loggers over `loglevel`, each with a color-coded prefix.
+Categories default to `INIT / DATA / UI` (redefinable / extendable).
+`enableLogging()` / `disableLogging()` / `setLogLevel()` / `setCategoryLevel()`
+control the whole bundle (i.e. all instances of that component type).
+
+### Per-instance logging
+
+`BlissElement` also exposes **`this.log`** — an instance logger per category,
+gated by the *more verbose* of the type-level level and this element's own
+override, and emitted via `console` directly. This lets a devtools overlay make
+**one element loud while its type stays silent**:
+
+```ts
+protected override update(partial: Record<string, unknown>) {
+  this.log.DATA?.debug('update', Object.keys(partial));
+}
+```
+
+```js
+el.enableLogging();        // this element only — even while the type is silent
+el.disableLogging();
+el.isLoggingEnabled;       // boolean
+```
+
+Each line is prefixed with a `tag#id` handle — the element's own `id` when set,
+else a `tag#n` counter:
+
+```
+[MULTISELECT:DATA] web-multiselect#country-picker  update  ['maxHeight']
+[MULTISELECT:DATA] web-multiselect#1               update  ['searchPlaceholder']
+```
+
+> ### ⚠️ Logging caveat: the instance label is memoized
+>
+> The `tag#id` handle is computed **once, on first access to `this.log`**, and
+> cached for the element's lifetime. In practice the element's `id` is set in
+> markup before its first lifecycle log, so the label reflects it correctly.
+>
+> But if the `id` attribute is **assigned later** — after the element has already
+> logged once — the label keeps the value it had at first access (the counter, if
+> there was no `id` then). The *element reference* returned by `getInstances()` is
+> always the reliable handle; the string label is a convenience for reading the
+> console. Set the `id` before the element first logs (i.e. in markup / before
+> connection) if you want it to appear in the label.
+
+## Commands
+
+```
+npm test            # vitest run (jsdom) — the whole suite
+npm run test:watch  # vitest watch mode
+npm run typecheck   # tsc --noEmit
+npm run build       # tsc → dist/ (ESM + .d.ts), excludes *.test.ts
+```
+
+Tests (`*.test.ts`) live next to the code they cover. Source uses explicit `.js`
+extensions on relative imports (moduleResolution `Bundler`) and
+`verbatimModuleSyntax` (type-only imports must use `import type`).
+
+## Learn more
+
+- **`SPEC.md`** — full design intent, the per-component divergence this
+  consolidates, and the decisions log.
+- **`CHANGELOG.md`** — what's landed.
+
+## License
+
+MIT
