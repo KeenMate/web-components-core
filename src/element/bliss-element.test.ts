@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BlissElement } from './bliss-element.js';
 import { dispatch } from './dispatch.js';
 import { define } from './define.js';
-import { toBool, toEnum, toFunction, toInt, toText } from '../inputs/converters.js';
+import { toBool, toCustom, toEnum, toFunction, toInt, toText } from '../inputs/converters.js';
 import type { InputDef } from '../inputs/types.js';
 
 const SELECTION = ['single', 'multiple', 'range'] as const;
@@ -32,6 +32,19 @@ class TestElement extends BlissElement {
 }
 
 define('test-element', TestElement as unknown as CustomElementConstructor);
+
+class ThrowingElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    {
+      configKey: 'bad',
+      attribute: 'bad',
+      converter: toCustom(() => {
+        throw new Error('boom');
+      }),
+    },
+  ];
+}
+define('throwing-element', ThrowingElement as unknown as CustomElementConstructor);
 
 const tick = (): Promise<void> => new Promise((r) => queueMicrotask(() => r()));
 
@@ -124,7 +137,8 @@ describe('BlissElement', () => {
     expect(el.updates[0]).toEqual({ selectionMode: 'multiple' });
   });
 
-  it('ignores invalid property assignments', async () => {
+  it('ignores invalid property assignments and warns', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
     const el = new TestElement();
     document.body.appendChild(el);
     el.reinits = 0;
@@ -135,6 +149,9 @@ describe('BlissElement', () => {
     expect(el.peek().selectionMode).toBe('single'); // unchanged
     expect(el.updates).toHaveLength(0);
     expect(el.reinits).toBe(0);
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]![0]).toContain('rejected invalid value for property "selectionMode"');
+    warn.mockRestore();
   });
 
   it('treats callbacks as reactive property-only update inputs', async () => {
@@ -182,6 +199,15 @@ describe('BlissElement', () => {
     expect(el.peek().note).toBe('hello');
     expect(el.reinits).toBe(0);
     expect(el.updates).toHaveLength(0);
+  });
+
+  it('warns and falls back to default when a converter throws', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const el = new ThrowingElement(); // seedDefaults triggers the throwing converter
+    expect(warn).toHaveBeenCalled();
+    expect(warn.mock.calls[0]![0]).toContain('threw computing its default');
+    expect((el as unknown as { bad: unknown }).bad).toBeUndefined(); // fell back to (absent) default
+    warn.mockRestore();
   });
 });
 

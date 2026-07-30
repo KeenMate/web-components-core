@@ -47,7 +47,15 @@ export abstract class BlissElement extends Base {
   attributeChangedCallback(name: string, _old: string | null, raw: string | null): void {
     if (this.#reflecting) return;
     const def = this.#byAttribute.get(name);
-    if (def) this.#stage(resolveFromAttribute(def, raw, this as unknown as AttrReader));
+    if (!def) return;
+    let resolved: Resolved;
+    try {
+      resolved = resolveFromAttribute(def, raw, this as unknown as AttrReader);
+    } catch (err) {
+      this.#warn(`converter for "${def.configKey}" threw parsing attribute ${name}="${raw}"; using default`, err);
+      resolved = this.#fallback(def);
+    }
+    this.#stage(resolved);
   }
 
   connectedCallback(): void {
@@ -107,12 +115,31 @@ export abstract class BlissElement extends Base {
 
   #seedDefaults(defs: readonly InputDef[]): void {
     for (const def of defs) {
-      const value = def.converter?.fromAttribute
-        ? def.converter.fromAttribute(null, this as unknown as AttrReader, def.attribute ?? def.configKey)
-        : def.default;
+      let value: unknown = def.default;
+      if (def.converter?.fromAttribute) {
+        try {
+          value = def.converter.fromAttribute(null, this as unknown as AttrReader, def.attribute ?? def.configKey);
+        } catch (err) {
+          this.#warn(`converter for "${def.configKey}" threw computing its default; using \`default\``, err);
+          value = def.default;
+        }
+      }
       this.#config[def.configKey] = value;
       if (def.field) (this as Record<string, unknown>)[def.field] = value;
     }
+  }
+
+  #fallback(def: InputDef): Resolved {
+    return { configKey: def.configKey, field: def.field, value: def.default, on: def.on ?? 'update' };
+  }
+
+  /**
+   * Always-on console warning for input validation failures. Deliberately uses
+   * `console.warn` directly — NOT the (future) categorized logger — so rejected
+   * inputs surface even when logging is disabled.
+   */
+  #warn(message: string, ...detail: unknown[]): void {
+    console.warn(`[BlissElement] <${this.localName ?? 'unknown'}> ${message}`, ...detail);
   }
 
   #installAccessors(defs: readonly InputDef[]): void {
@@ -134,7 +161,10 @@ export abstract class BlissElement extends Base {
 
   #setFromProperty(def: InputDef, value: unknown): void {
     const resolved = resolveFromProperty(def, value);
-    if (!resolved) return; // invalid property value: ignored
+    if (!resolved) {
+      this.#warn(`rejected invalid value for property "${def.configKey}"; keeping previous value`, value);
+      return;
+    }
     this.#stage(resolved);
     if (def.reflect && def.attribute && def.converter?.toAttribute) {
       const attrVal = def.converter.toAttribute(resolved.value as never);
