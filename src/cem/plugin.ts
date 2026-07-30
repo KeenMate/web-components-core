@@ -12,21 +12,31 @@
  * dependency on it — the types below are structural and intentionally loose to
  * avoid a hard dependency on the analyzer's internal types.
  */
-import { extractBlissClass, type ExtractedClass } from './extract.js';
+import { extractBlissClass, parseRegisterComponentCall, type ExtractedClass } from './extract.js';
 
 /** Minimal shape of a CEM class-like declaration this plugin augments. */
 interface CemDeclaration {
   kind?: string;
   name?: string;
+  tagName?: string;
+  customElement?: boolean;
   attributes?: unknown[];
   members?: unknown[];
   events?: unknown[];
   [key: string]: unknown;
 }
 
+interface CemExport {
+  kind?: string;
+  name?: string;
+  declaration?: { name?: string; module?: string };
+  [key: string]: unknown;
+}
+
 interface CemModuleDoc {
   path?: string;
   declarations?: CemDeclaration[];
+  exports?: CemExport[];
   [key: string]: unknown;
 }
 
@@ -55,6 +65,9 @@ function mergeByName<T extends { name?: string }>(existing: unknown[] | undefine
 export function blissInputsPlugin(): CemPlugin {
   // className → extracted data, filled in analyzePhase, consumed in moduleLinkPhase.
   const extracted = new Map<string, ExtractedClass>();
+  // className → tag name from a `registerComponent()` call (core §12.3), which
+  // the stock analyzer does not recognize as a custom-element definition.
+  const registrations = new Map<string, string>();
 
   return {
     name: 'keenmate-bliss-inputs',
@@ -62,6 +75,8 @@ export function blissInputsPlugin(): CemPlugin {
     analyzePhase({ ts, node }) {
       const tsApi = ts as typeof import('typescript');
       const n = node as import('typescript').Node;
+      const reg = parseRegisterComponentCall(tsApi, n);
+      if (reg) registrations.set(reg.className, reg.tagName);
       if (!tsApi.isClassDeclaration(n)) return;
       const meta = extractBlissClass(tsApi, n, n.getSourceFile());
       if (meta) extracted.set(meta.name, meta);
@@ -71,10 +86,31 @@ export function blissInputsPlugin(): CemPlugin {
       for (const decl of moduleDoc.declarations ?? []) {
         if (!decl.name) continue;
         const meta = extracted.get(decl.name);
-        if (!meta) continue;
-        if (meta.attributes.length) decl.attributes = mergeByName(decl.attributes, meta.attributes);
-        if (meta.members.length) decl.members = mergeByName(decl.members, meta.members);
-        if (meta.events.length) decl.events = mergeByName(decl.events, meta.events);
+        if (meta) {
+          if (meta.attributes.length) decl.attributes = mergeByName(decl.attributes, meta.attributes);
+          if (meta.members.length) decl.members = mergeByName(decl.members, meta.members);
+          if (meta.events.length) decl.events = mergeByName(decl.events, meta.events);
+        }
+
+        // Recognize core's registerComponent() as a custom-element definition:
+        // flag the declaration and add the `custom-element-definition` export the
+        // stock analyzer would have emitted for `customElements.define()`.
+        const tagName = registrations.get(decl.name);
+        if (tagName) {
+          decl.customElement = true;
+          decl.tagName = tagName;
+          moduleDoc.exports ??= [];
+          const already = moduleDoc.exports.some(
+            (e) => e.kind === 'custom-element-definition' && e.name === tagName,
+          );
+          if (!already) {
+            moduleDoc.exports.push({
+              kind: 'custom-element-definition',
+              name: tagName,
+              declaration: { name: decl.name, module: moduleDoc.path },
+            });
+          }
+        }
       }
     },
   };

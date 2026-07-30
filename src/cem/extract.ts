@@ -54,6 +54,12 @@ export interface ExtractedClass {
   events: ExtractedEvent[];
 }
 
+/** A `registerComponent('tag', Class, …)` call linking a tag name to a class. */
+export interface ExtractedRegistration {
+  tagName: string;
+  className: string;
+}
+
 /** Peel `(expr)`, `expr as T`, `expr satisfies T` down to the underlying expression. */
 function unwrap(ts: TS, expr: Expression): Expression {
   let e = expr;
@@ -147,7 +153,7 @@ function resolveArrayLiteral(
 }
 
 /** Derive a TS type string from a `to*` converter call expression. */
-function typeFromConverter(ts: TS, expr: Expression | undefined): ExtractedType | undefined {
+function typeFromConverter(ts: TS, expr: Expression | undefined, sf: SourceFile): ExtractedType | undefined {
   if (!expr) return undefined;
   const call = unwrap(ts, expr);
   if (!ts.isCallExpression(call) || !ts.isIdentifier(call.expression)) return undefined;
@@ -155,8 +161,13 @@ function typeFromConverter(ts: TS, expr: Expression | undefined): ExtractedType 
   const args = call.arguments;
   switch (name) {
     case 'toEnum': {
-      const arr = args[0];
-      if (arr && ts.isArrayLiteralExpression(arr)) {
+      // The members can be an inline array, an `as const` array, or an
+      // identifier referencing a shared `const NAMES = [...] as const` — so
+      // resolve through `resolveArrayLiteral` rather than only matching a bare
+      // ArrayLiteralExpression (which misses both the `as const` and the shared
+      // identifier forms components actually use).
+      const arr = args[0] ? resolveArrayLiteral(ts, args[0], sf) : undefined;
+      if (arr) {
         const members = arr.elements
           .map((el) => stringOf(ts, el))
           .filter((v): v is string => v !== undefined)
@@ -223,7 +234,7 @@ function extractInput(
   if (!configKey) return {};
   const attribute = stringOf(ts, propOf(ts, row, 'attribute'));
   const converter = propOf(ts, row, 'converter');
-  const type = typeFromConverter(ts, converter);
+  const type = typeFromConverter(ts, converter, sf);
   const def = defaultText(ts, row, converter, sf);
   const reflects = boolOf(ts, propOf(ts, row, 'reflect')) === true;
   const description = descriptionOf(ts, row, row, sf);
@@ -314,6 +325,36 @@ export function extractBlissClass(ts: TS, cls: TsNamespace.ClassDeclaration, sf:
   }
 
   return { name: cls.name.text, attributes, members, events };
+}
+
+/**
+ * If `node` is a core `registerComponent('tag', Class, …)` call, return the tag
+ * name and referenced class name. Core's registration (SPEC §12.3) replaces the
+ * `customElements.define()` the stock analyzer recognizes, so without this the
+ * component is never flagged as a custom element (no `tagName`, no
+ * `custom-element-definition` export). The class argument may be wrapped in an
+ * `as` cast (`Class as unknown as CustomElementConstructor`), so it is unwrapped.
+ */
+export function parseRegisterComponentCall(ts: TS, node: Node): ExtractedRegistration | undefined {
+  if (!ts.isCallExpression(node)) return undefined;
+  if (!ts.isIdentifier(node.expression) || node.expression.text !== 'registerComponent') return undefined;
+  const tagName = stringOf(ts, node.arguments[0]);
+  const classArg = node.arguments[1] ? unwrap(ts, node.arguments[1]) : undefined;
+  const className = classArg && ts.isIdentifier(classArg) ? classArg.text : undefined;
+  if (!tagName || !className) return undefined;
+  return { tagName, className };
+}
+
+/** Find every `registerComponent()` registration in a source file. */
+export function extractRegistrations(ts: TS, sf: SourceFile): ExtractedRegistration[] {
+  const out: ExtractedRegistration[] = [];
+  const visit = (node: Node): void => {
+    const reg = parseRegisterComponentCall(ts, node);
+    if (reg) out.push(reg);
+    ts.forEachChild(node, visit);
+  };
+  visit(sf);
+  return out;
 }
 
 /** Extract every table-driven component class in a source file. */

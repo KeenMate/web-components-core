@@ -139,7 +139,13 @@ dependency — the analyzer injects `typescript`). `blissInputsPlugin()` teaches
 events` tables (invisible to the stock analyzer). All extraction is in the pure,
 unit-tested `extractBlissClass(ts, node, sourceFile)`; the plugin is a thin
 analyze-then-`moduleLinkPhase`-merge wrapper. `blissAnalyzerConfig()` is the
-shared config preset. **Source-of-truth split (SPEC §8 amendment):** the table +
+shared config preset. The plugin also recognizes core's `registerComponent()`
+(via `parseRegisterComponentCall` / `extractRegistrations`) as a custom-element
+definition — the stock analyzer only knows `customElements.define()` — so it sets
+`customElement`/`tagName` and adds the `custom-element-definition` export.
+`toEnum` types resolve through `as const` and shared members-consts (e.g. a
+hoisted `const PLACEMENTS = […] as const`), not just inline array literals.
+**Source-of-truth split (SPEC §8 amendment):** the table +
 converter give the *structure* (attr↔prop, type, default, `reflect`, enum
 members); the optional `description`/`deprecated` fields on each `InputDef` /
 `EventDef` row (or a leading comment) give the *prose*. Those doc fields are

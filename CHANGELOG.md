@@ -156,6 +156,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - SPEC §12.1 amended: `loglevel-plugin-prefix` dropped; core depends on
   `loglevel` only and does the colored `%c` prefix in a `loglevel` methodFactory
   (ordering-safe), avoiding the plugin's browser `%c` ordering bug.
+- **`toFunction()` now accepts `null` / `undefined`** (value type `Converter<F |
+  null>`), so a callback can be CLEARED by assignment — `el.onThing = null`,
+  exactly like a DOM event-handler property. Previously the property validator
+  rejected anything non-callable, so a callback could never be unset once set.
+  Surfaced by the multiselect pseudo-migration (`el.customStylesCallback = null`).
+
+### Fixed
+
+- **CEM: `toEnum` unions now resolve through `as const` and a shared members
+  const.** The extractor only matched a bare `ArrayLiteralExpression`, so the two
+  forms components actually use — `toEnum(['a','b'] as const, …)` and
+  `toEnum(SHARED_PLACEMENTS, …)` — fell back to `string` instead of the member
+  union. It now runs the argument through the same `resolveArrayLiteral` used for
+  the input/event tables (peeling `as const` and following identifiers).
+- **CEM: `registerComponent()` is now recognized as a custom-element
+  definition.** The stock analyzer only understands `customElements.define()`, so
+  a component registered via core's `registerComponent()` (SPEC §12.3) produced a
+  plain class declaration — no `customElement: true`, no `tagName`, no
+  `custom-element-definition` export. `blissInputsPlugin` now detects the call
+  (unwrapping an `as`-cast class argument) and fills those in. New exports:
+  `parseRegisterComponentCall`, `extractRegistrations`, `ExtractedRegistration`.
 
 ### Decided
 

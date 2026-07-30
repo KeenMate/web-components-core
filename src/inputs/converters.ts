@@ -345,11 +345,17 @@ export function toCustom<V>(
   };
 }
 
-/** Callback input: property-only (no attribute), accepts any function. */
-export function toFunction<F extends (...args: never[]) => unknown = (...args: never[]) => unknown>(): Converter<F> {
+/**
+ * Callback input: property-only (no attribute), accepts any function — or `null`
+ * / `undefined` to CLEAR it. Callbacks are inherently optional, and clearing one
+ * by assignment (`el.onThing = null`, exactly like a DOM event-handler property)
+ * must be accepted, not rejected. So the value type is `F | null`; give the row a
+ * `default` of `null` if you want an explicit unset sentinel.
+ */
+export function toFunction<F extends (...args: never[]) => unknown = (...args: never[]) => unknown>(): Converter<F | null> {
   return {
-    validate(value): value is F {
-      return typeof value === 'function';
+    validate(value): value is F | null {
+      return value === null || value === undefined || typeof value === 'function';
     },
   };
 }

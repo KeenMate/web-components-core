@@ -182,6 +182,12 @@ describe('toFunction', () => {
     expect(c.validate!(() => {})).toBe(true);
     expect(c.validate!(42)).toBe(false);
   });
+
+  it('accepts null / undefined so a callback can be cleared', () => {
+    const c = toFunction();
+    expect(c.validate!(null)).toBe(true);
+    expect(c.validate!(undefined)).toBe(true);
+  });
 });
 
 describe('toValue', () => {

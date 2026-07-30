@@ -1,10 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import * as ts from 'typescript';
-import { extractBlissClasses, type ExtractedClass } from './extract.js';
+import { extractBlissClasses, extractRegistrations, type ExtractedClass } from './extract.js';
 
 function parse(source: string): ExtractedClass[] {
   const sf = ts.createSourceFile('test.ts', source, ts.ScriptTarget.Latest, /* setParentNodes */ true);
   return extractBlissClasses(ts, sf);
+}
+
+function registrations(source: string): ReturnType<typeof extractRegistrations> {
+  const sf = ts.createSourceFile('test.ts', source, ts.ScriptTarget.Latest, /* setParentNodes */ true);
+  return extractRegistrations(ts, sf);
 }
 
 describe('extractBlissClasses', () => {
@@ -114,6 +119,21 @@ describe('extractBlissClasses', () => {
     expect(cls!.members[0]!.deprecated).toBe('use y');
   });
 
+  it('resolves a toEnum union through `as const` and a shared const of members', () => {
+    const [cls] = parse(`
+      const PLACEMENTS = ['top', 'bottom'] as const;
+      class W extends BlissElement {
+        static inputs = [
+          { configKey: 'mode', attribute: 'mode', converter: toEnum(['a', 'b'] as const, { default: 'a' }) },
+          { configKey: 'place', attribute: 'place', converter: toEnum(PLACEMENTS, { default: 'top' }) },
+        ];
+      }
+    `);
+    const byKey = Object.fromEntries(cls!.members.map((m) => [m.name, m]));
+    expect(byKey.mode!.type).toEqual({ text: "'a' | 'b'" }); // as const array
+    expect(byKey.place!.type).toEqual({ text: "'top' | 'bottom'" }); // shared const identifier
+  });
+
   it('extracts events from bare names and EventDef objects', () => {
     const [cls] = parse(`
       class W extends BlissElement {
@@ -127,5 +147,26 @@ describe('extractBlissClasses', () => {
       { name: 'select' },
       { name: 'change', description: 'Selection changed.', deprecated: true },
     ]);
+  });
+});
+
+describe('extractRegistrations', () => {
+  it('finds registerComponent() calls, unwrapping an as-cast class argument', () => {
+    expect(
+      registrations(`
+        registerComponent('web-multiselect', WebMultiSelect as unknown as CustomElementConstructor, {
+          config: { name: 'x', version: '1' },
+        });
+      `),
+    ).toEqual([{ tagName: 'web-multiselect', className: 'WebMultiSelect' }]);
+  });
+
+  it('ignores non-registerComponent calls and calls with a non-literal tag', () => {
+    expect(
+      registrations(`
+        define('web-x', Foo);
+        registerComponent(tagVar, Foo);
+      `),
+    ).toEqual([]);
   });
 });

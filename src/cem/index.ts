@@ -11,9 +11,12 @@ export { blissInputsPlugin, type CemPlugin } from './plugin.js';
 export {
   extractBlissClass,
   extractBlissClasses,
+  extractRegistrations,
+  parseRegisterComponentCall,
   type ExtractedAttribute,
   type ExtractedClass,
   type ExtractedEvent,
   type ExtractedMember,
+  type ExtractedRegistration,
   type ExtractedType,
 } from './extract.js';
