@@ -84,6 +84,18 @@ Two load-bearing concepts. Understanding both requires reading §4–§6 of the 
    This resolves SPEC §11.3: reinit dominates update in a mixed batch, so the
    update partial is suppressed when a rebuild will happen anyway.
 
+   **Lifecycle (build-once + activate/deactivate, Lit's model).** Two more
+   opt-in hooks manage *live* resources separately from structure:
+   - **`connect()`** — every connect, after any `reinit()`/`update()`. Start
+     listeners, observers, floating-ui `autoUpdate`, timers.
+   - **`disconnect()`** — every disconnect. Stop what `connect()` started.
+
+   A DOM move (reorder/re-parent) fires `disconnect()`→`connect()` and
+   **re-activates without rebuilding** (`reinit()` runs only on first connect or
+   an `on:'reinit'` change) — so transient UI state survives. `connect()`/
+   `disconnect()` can run many times; keep them balanced. Config changed while
+   detached is held and applied on reconnect, before `connect()`.
+
 ## Key invariants (enforce these in review and when migrating components)
 
 - Web components build **on** core — do not re-implement observed-attribute,

@@ -18,6 +18,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   coalesced batching (`setAttributes()`, `batch()`), optional attribute
   reflection, pre-upgrade property capture, and the `reinit()` / `update(partial)`
   subclass hooks (opt-in, no-op by default). The input table is opt-in.
+- **Element lifecycle** (build-once + activate/deactivate, Lit's model): opt-in
+  `connect()` / `disconnect()` hooks fire on every connect/disconnect for live
+  resources (listeners, observers, floating-ui `autoUpdate`). A DOM move
+  re-activates without rebuilding; `reinit()` runs only on first connect or an
+  `on:'reinit'` change. Config changed while detached is applied on reconnect
+  before `connect()`.
 - Typed `dispatch()` (composed + bubbling by default) and idempotent, SSR-safe
   `define()`.
 - DOM utilities (`src/dom/`): `resolveEnumAttribute`, `createMicrotaskScheduler`.

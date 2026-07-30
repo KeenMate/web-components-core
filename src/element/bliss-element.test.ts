@@ -19,12 +19,25 @@ class TestElement extends BlissElement {
   ];
 
   reinits = 0;
+  connects = 0;
+  disconnects = 0;
   readonly updates: Record<string, unknown>[] = [];
+  readonly events: string[] = [];
   protected override reinit(): void {
     this.reinits += 1;
+    this.events.push('reinit');
   }
   protected override update(partial: Record<string, unknown>): void {
     this.updates.push(partial);
+    this.events.push('update');
+  }
+  protected override connect(): void {
+    this.connects += 1;
+    this.events.push('connect');
+  }
+  protected override disconnect(): void {
+    this.disconnects += 1;
+    this.events.push('disconnect');
   }
   peek(): Readonly<Record<string, unknown>> {
     return this.config;
@@ -208,6 +221,67 @@ describe('BlissElement', () => {
     expect(warn.mock.calls[0]![0]).toContain('threw computing its default');
     expect((el as unknown as { bad: unknown }).bad).toBeUndefined(); // fell back to (absent) default
     warn.mockRestore();
+  });
+});
+
+describe('BlissElement lifecycle (build-once + activate/deactivate)', () => {
+  it('calls connect() after reinit() on first connect', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    expect(el.events).toEqual(['reinit', 'connect']);
+    expect(el.connects).toBe(1);
+  });
+
+  it('calls disconnect() on removal', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.events.length = 0;
+    document.body.removeChild(el);
+    expect(el.events).toEqual(['disconnect']);
+    expect(el.disconnects).toBe(1);
+  });
+
+  it('re-activates on reconnect WITHOUT rebuilding (a DOM move)', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.events.length = 0;
+    el.reinits = 0;
+
+    document.body.removeChild(el); // disconnect
+    document.body.appendChild(el); // reconnect
+
+    expect(el.events).toEqual(['disconnect', 'connect']);
+    expect(el.reinits).toBe(0); // no rebuild on move
+    expect(el.connects).toBe(2);
+  });
+
+  it('applies config changed while disconnected, then re-activates (update → connect)', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.events.length = 0;
+    el.reinits = 0;
+    el.updates.length = 0;
+
+    document.body.removeChild(el);
+    el.setAttribute('selection-mode', 'range'); // on:'update', while detached
+    document.body.appendChild(el);
+
+    expect(el.events).toEqual(['disconnect', 'update', 'connect']);
+    expect(el.peek().selectionMode).toBe('range');
+  });
+
+  it('rebuilds on reconnect when a reinit-level input changed while disconnected', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.events.length = 0;
+    el.reinits = 0;
+
+    document.body.removeChild(el);
+    el.setAttribute('option-height', '30'); // on:'reinit', while detached
+    document.body.appendChild(el);
+
+    expect(el.events).toEqual(['disconnect', 'reinit', 'connect']);
+    expect(el.reinits).toBe(1);
   });
 });
 

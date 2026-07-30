@@ -3,6 +3,10 @@
  * stub every repo used to copy), it wires attributes AND properties through the
  * one {@link resolveFromAttribute}/{@link resolveFromProperty} pipeline, folds
  * bursts into a single {@link reinit}/{@link update}, and reflects when asked.
+ * Lifecycle follows a build-once + activate/deactivate model: {@link reinit}
+ * builds structure (first connect + `on:'reinit'` changes), while
+ * {@link connect}/{@link disconnect} start and stop live resources on every
+ * connect/disconnect — a plain DOM move re-activates without rebuilding.
  * The input table is OPT-IN: a subclass without `static inputs` still gets the
  * SSR base plus
  * `dispatch`/`define` (web-grid's use). See SPEC.md §6.
@@ -64,7 +68,12 @@ export abstract class BlissElement extends Base {
       // First connect is always a full build — there is nothing to patch yet.
       this.#pendingReinit = true;
     }
-    this.#flushNow();
+    this.#flushNow(); // reinit()/update() for any pending config, THEN activate
+    this.connect();
+  }
+
+  disconnectedCallback(): void {
+    this.disconnect();
   }
 
   // ── public batching API ─────────────────────────────────────────────────
@@ -108,6 +117,26 @@ export abstract class BlissElement extends Base {
    * without a teardown; no-op by default.
    */
   protected update(_partial: Record<string, unknown>): void {
+    /* opt-in */
+  }
+
+  /**
+   * Activate: called on EVERY connect, after any `reinit()`/`update()` for that
+   * connect (including the first). Start live resources here — document/window
+   * listeners, observers, floating-ui `autoUpdate`, timers. Pairs with
+   * {@link disconnect} and can run many times (any DOM move re-fires it), so
+   * keep it balanced/idempotent. No-op by default.
+   */
+  protected connect(): void {
+    /* opt-in */
+  }
+
+  /**
+   * Deactivate: called on EVERY disconnect. Stop whatever {@link connect}
+   * started. The shadow DOM persists across disconnect/reconnect, so do NOT
+   * tear down structure here — only the live resources. No-op by default.
+   */
+  protected disconnect(): void {
     /* opt-in */
   }
 

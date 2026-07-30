@@ -202,6 +202,13 @@ export abstract class BlissElement extends Base {
   protected reinit(): void { /* opt-in, no-op by default */ }
   /** In-place patch of the changed `on:'update'` keys. Called only when no reinit key changed. */
   protected update(partial: Record<string, unknown>): void { /* opt-in, no-op by default */ }
+
+  // LIFECYCLE: build-once + activate/deactivate (Lit's model). connect()/disconnect()
+  // fire on EVERY connect/disconnect; a plain DOM move re-activates, never rebuilds.
+  /** Start live resources (listeners, observers, floating-ui autoUpdate). Every connect, after reinit/update. */
+  protected connect(): void { /* opt-in, no-op by default */ }
+  /** Stop what connect() started. Every disconnect. Shadow DOM persists — don't tear down structure. */
+  protected disconnect(): void { /* opt-in, no-op by default */ }
 }
 ```
 
@@ -221,6 +228,13 @@ properties/callbacks — so everything is reactive by construction:
 - **Reactivity contract** declared per input (`on`) and enforced
   centrally — no input can be added that forgets to parse, validate, or
   react.
+- **Lifecycle** is build-once + activate/deactivate (Lit's model). `reinit()`
+  builds structure; `connect()`/`disconnect()` start/stop live resources on
+  every connect/disconnect. Connect order is `reinit()`/`update()` (for any
+  pending config) then `connect()`. A DOM move (reorder, re-parent) fires
+  `disconnect()`→`connect()` and re-activates **without** rebuilding, so
+  transient UI state (scroll, focus, open panels) survives. Config changed while
+  detached is held and applied on reconnect, before `connect()`.
 
 Plus a typed `dispatch(el, name, detail, {bubbles=true, composed=true})`
 and generic DOM utils (`resolveEnumAttribute`, `createMicrotaskScheduler`)
