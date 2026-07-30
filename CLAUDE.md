@@ -30,9 +30,9 @@ next to the code they cover. Source uses explicit `.js` extensions on relative
 imports (moduleResolution `Bundler`) and `verbatimModuleSyntax` (type-only
 imports must use `import type`).
 
-Core v1 has **no runtime dependencies**. The logger and positioning modules of
-§12 (which would add `loglevel` / `@floating-ui/dom`) are beyond v1 — don't
-build them without confirming shape.
+Runtime dependencies: **`loglevel`** only (for the logging module, below). The
+positioning module of §12.2 (which would add `@floating-ui/dom`) is not built —
+don't add it without confirming shape.
 
 ## Why this package exists
 
@@ -98,9 +98,23 @@ Two load-bearing concepts. Understanding both requires reading §4–§6 of the 
   with **no consumer-facing attribute/event changes**. Order: build core →
   treeview → multiselect + dropzone → daterangepicker → web-grid (§9).
 
+## Logging (`src/logging/`, SPEC §12.1 — implemented)
+
+`createLoggers(namespace, categories?)` returns categorized `NAMESPACE:CATEGORY`
+loggers over **`loglevel`** (core's one runtime dependency), each with a
+color-coded `%c` prefix done in a `methodFactory` (ordering-safe:
+`%c[label]` + CSS, then raw args — messages stay uncoloured). Categories default
+to `INIT/DATA/UI` and can be redefined or extended. `enableLogging()` defaults to
+`debug`; `disableLogging()` → silent. `createPerfLogger(namespace)` is the opt-in
+timing companion. `loglevel-plugin-prefix` was **dropped** (its browser `%c`
+handling is the ordering bug we avoid) — an amendment to §12.1's original text.
+
+Note: `BlissElement`'s input-validation warnings deliberately bypass this logger
+and call `console.warn` directly, so they surface even when logging is disabled.
+
 ## Beyond v1
 
-§12 tracks additional shared modules under discussion — logger (DECIDED:
-centralize, no more vendoring), positioning wrappers over `@floating-ui/dom`,
-CEM tooling, theming helpers. These are **not** part of v1; don't build them
-without confirming the shape. Open design questions live in §11.
+§12 tracks further shared modules not yet built — positioning wrappers over
+`@floating-ui/dom` (§12.2), CEM tooling, theming helpers. These are **not** in
+scope; don't build them without confirming the shape. Decisions are recorded in
+§11 (resolved) and §12.1 (logger, done).

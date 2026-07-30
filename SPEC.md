@@ -1,6 +1,8 @@
 # `@keenmate/web-components-core` — design spec
 
-**Status:** design-first. This file seeds the repo; no code yet.
+**Status:** v1 implemented under `src/` (TypeScript + Vitest, 35 tests). This
+file remains the design source of truth; the §11 decisions below are resolved
+and reflected in the code.
 **Repo:** `C:\Git\KM\web-components-core` → npm `@keenmate/web-components-core`.
 **v1 scope (agreed):** the **reactive input model** (converter-driven
 attribute/property/callback definitions) and the **`BlissElement` base
@@ -185,29 +187,37 @@ export abstract class BlissElement extends Base {
     return (this.inputs ?? []).filter(d => d.attribute).map(d => d.attribute!);
   }
 
-  // ATTRIBUTE path → converter.fromAttribute → stage → apply per `on`
+  // ATTRIBUTE path → converter.fromAttribute → stage → dispatch per `on`
   attributeChangedCallback(name: string, _old: string | null, raw: string | null): void { /* … */ }
 
-  // PROPERTY path: base generates get/set per configKey → converter.validate → stage → apply per `on`
+  // PROPERTY path: base generates get/set per configKey → converter.validate → stage → dispatch per `on`
   //   el.selectionMode = 'range'          → reactive
   //   el.getBadgeDisplayCallback = fn     → reactive (callbacks too)
 
-  // BATCHING: setAttributes({...}) / a batch scope coalesce many changes into one applyConfig(partial)
-  setAttributes(attrs: Record<string, unknown>): void { /* … */ }
+  // BATCHING: setAttributes({...}) / batch(fn) coalesce many changes into ONE reinit()/update()
+  setAttributes(values: Record<string, unknown>): void { /* … */ }
+  batch(fn: () => void): void { /* … */ }
 
-  /** Subclass hook: apply a validated partial (the component decides update-vs-reinit meaning). */
-  protected abstract applyConfig(partial: Record<string, unknown>): void;
+  /** Full rebuild (reads this.config). Called on first connect and on any `on:'reinit'` change. */
+  protected reinit(): void { /* opt-in, no-op by default */ }
+  /** In-place patch of the changed `on:'update'` keys. Called only when no reinit key changed. */
+  protected update(partial: Record<string, unknown>): void { /* opt-in, no-op by default */ }
 }
 ```
 
 The **same pipeline serves both entry points** — attributes *and*
 properties/callbacks — so everything is reactive by construction:
 
-- **Attribute change** → `converter.fromAttribute(raw)` → stage → apply.
-- **Property assignment** → `converter.validate(value)` → stage → apply.
+- **Attribute change** → `converter.fromAttribute(raw)` → stage → dispatch.
+- **Property assignment** → `converter.validate(value)` → stage → dispatch.
 - **Dual-path** (month-names as a pipe-string *or* an array): same row,
   `fromAttribute` handles the string, `validate` guards the array.
-- **Batching** coalesces bursts into one `applyConfig`.
+- **Batching** coalesces bursts, then dispatches to exactly one hook:
+  `reinit()` if the batch touched any `on:'reinit'` input (it reads the
+  already-merged `this.config`, so it absorbs any `update` keys in the same
+  batch), otherwise `update(partial)` with just the changed `update` keys.
+  A change is always staged into `config` before either hook fires, and
+  `on:'none'` inputs are stored without firing either hook.
 - **Reactivity contract** declared per input (`on`) and enforced
   centrally — no input can be added that forgets to parse, validate, or
   react.
@@ -279,14 +289,25 @@ consumer-facing attribute/event changes.
 
 ---
 
-## 11. Open questions
+## 11. Decisions (formerly open questions)
 
-1. **`toText`** for the string converter (avoiding the
-   `Object.prototype.toString` collision) — or prefer `toStr`?
-2. **Config-key field name** — spec uses `configKey`; shorten to `key`?
-3. **How much of `applyConfig`** (in-place-update vs reinit, member
-   fallbacks) is generic vs stays per-component.
-4. **Store/satellite pattern** — keep dropzone-local until a second
+1. **String converter → `toText`.** RESOLVED: `toText` (not `toStr`), avoiding
+   the `Object.prototype.toString` collision.
+2. **Config-key field → `configKey`.** RESOLVED: kept the explicit `configKey`
+   (not shortened to `key`).
+3. **Reactivity dispatch → `reinit()` / `update(partial)`.** RESOLVED: the base
+   splits the single hook into two. `reinit` means rebuild the whole component;
+   `update` means patch a part in place. A batch that touches any `on:'reinit'`
+   input calls `reinit()` only — since the rebuild reads full `this.config`, the
+   `update` partial would be redundant, so it is suppressed. First connect always
+   calls `reinit()`. Both hooks are no-op by default, so the table stays opt-in
+   (web-grid overrides neither). See §6.
+
+   Also settled here: `toBool` accepts a permissive true/false vocabulary
+   (`true/1/yes/on` · `false/0/no/off`, case-insensitive); an unrecognized
+   explicit value falls back to the mode default, exactly like an absent
+   attribute — consistent with every other converter.
+4. **Store/satellite pattern** — DEFERRED: stays dropzone-local until a second
    component needs it (recommended).
 
 ---
@@ -296,7 +317,17 @@ consumer-facing attribute/event changes.
 Candidates already duplicated across components, in rough priority order.
 Each becomes its own core module once we agree the shape.
 
-### 12.1 Logger — DECIDED: centralize to core
+### 12.1 Logger — IMPLEMENTED (`src/logging/`)
+
+**Status:** built. Amended from the original decision: core depends on
+**`loglevel` only** — `loglevel-plugin-prefix` was dropped. Its browser `%c`
+handling is precisely the "ordering bug" noted below, so core does the colored
+`NAMESPACE:CATEGORY` prefix directly in a `loglevel` `methodFactory`
+(ordering-safe by construction: `%c[label]`, the CSS string, then the raw
+message args — messages stay uncoloured and structured-loggable). `createLoggers`
+is idempotent per logger name (won't double-wrap), assigns each category a stable
+palette colour by index, and `enableLogging()` defaults to `debug`. Original
+context and decision retained below.
 
 Context: all five components already use **loglevel +
 loglevel-plugin-prefix** with the same shape — categorized named loggers
@@ -310,9 +341,9 @@ not design choices.
 
 **Decision:** logging moves into core.
 
-- Core takes **`loglevel` + `loglevel-plugin-prefix` as its own npm
-  dependencies** (bundled into each component's dist; **no more
-  vendoring**).
+- Core takes **`loglevel` as its own npm dependency** (bundled into each
+  component's dist; **no more vendoring**). *(Amended: `loglevel-plugin-prefix`
+  dropped — see status note above.)*
 - Core owns the color `%c` prefix, with multiselect's ordering fix baked
   in so every component gets it.
 - **Default categories, overridable.** Core ships a baseline set; a
