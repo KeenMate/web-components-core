@@ -174,10 +174,22 @@ wrappers. Decisions: follow-cursor is a tooltip option not a preset; the bespoke
 shadow-DOM platform was NOT ported (1.8 handles it + the `platform` hatch). Tests
 mock `@floating-ui/dom` (jsdom has no layout).
 
+## Style injection (`src/dom/adopt-styles.ts`, SPEC §12.8 — implemented)
+
+Two zero-dep free functions in the main index (core stays render-agnostic — no
+shadow-DOM assumptions in `BlissElement`, so these are NOT methods).
+`adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (cached
+`CSSStyleSheet` per string, shared across instances, `<style>` fallback,
+SSR-safe, dedup per root) — the `main.css?inline` case. `createStyleSlot(root, {
+position?, className? })` → `{ set, clear, destroy }` is a per-instance
+replaceable `<style>` slot for the `customStylesCallback` case (consistent
+position so re-set replaces; `<style>`-based so user `@import` works). Authoring
+rules (`@layer` order, `?inline`) stay CSS-guideline, not code.
+
 ## Beyond v1
 
-§12's remaining unbuilt candidate is theming / CSS cascade-layer helpers (§12.4)
-— largely governed by the CSS guidelines and may need no runtime code. **Not** in
-scope; don't build without confirming the shape. Decisions are recorded in §11
-(resolved), §12.1 (logger), §12.2 (positioning), §12.3 (global registration),
-§12.5 (events), §12.6 (CEM), §12.7 (testing) — all done.
+§12 is fully built out. Decisions are recorded in §11 (resolved), §12.1 (logger),
+§12.2 (positioning), §12.3 (global registration), §12.5 (events), §12.6 (CEM),
+§12.7 (testing), §12.8 (style injection). No §12 candidates remain unbuilt; the
+theming work reduced to the two §12.8 runtime helpers plus pure CSS-guideline
+authoring rules. Don't add further shared modules without confirming the shape.

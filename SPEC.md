@@ -560,9 +560,10 @@ auto-registered while the rest did not. Core consolidates it:
 ### 12.4 Other candidates (later modules)
 - **Callbacks & events model** — IMPLEMENTED, see §12.5 (`static events` +
   `emit()` + managed `on<Name>` properties, and `runHook()` for `*Callback`s).
-- **Theming / CSS cascade-layer helpers** — the `@layer` + `?inline`
-  main.css import pattern (largely governed by the CSS guidelines; may
-  not need runtime code).
+- **Theming / CSS cascade-layer helpers** — the RUNTIME step (adopt a
+  stylesheet into a shadow root) is IMPLEMENTED, see §12.8 (`adoptStyles`
+  + `createStyleSlot`). The authoring conventions (`@layer` order, `?inline`
+  import) stay pure CSS-guideline, no code.
 - **CEM tooling preset** — IMPLEMENTED, see §12.6 (`/cem`: analyzer config
   preset + a plugin that reads the `static inputs` / `static events` tables).
 - **Testing utilities** — IMPLEMENTED, see §12.7 (`/testing`: runner-agnostic
@@ -623,6 +624,34 @@ the optional `description` / `deprecated` fields on each row.
 The Playwright + a11y/contrast fixtures the original §12.4 note mentioned are
 **deferred** — they need a real-browser toolchain and belong closer to a
 design-system/theming package than the input-model core.
+
+### 12.8 Style injection — IMPLEMENTED (`src/dom/adopt-styles.ts`)
+
+**Status:** built (main index — tiny, zero-dep). The §12.4 theming candidate was
+hedged as "may need no runtime code"; the resolution is that the *authoring*
+conventions stay pure guideline, but the two *runtime* injection steps every
+component re-rolls become core helpers. Core deliberately does NOT touch shadow
+DOM elsewhere (it is render-agnostic — web-grid uses light DOM), so these are
+free functions taking a root + CSS strings, NOT `BlissElement` methods.
+
+- **`adoptStyles(root, ...cssStrings)`** — STATIC, shared stylesheets (the
+  `main.css?inline` pattern). One `CSSStyleSheet` per unique string, cached
+  module-level and shared across every instance via `adoptedStyleSheets` (dedup
+  per root); `<style>` fallback where constructable sheets are unsupported;
+  no-op under SSR.
+- **`createStyleSlot(root, { position?, className? })`** → `{ set, clear,
+  destroy }` — a PER-INSTANCE, replaceable `<style>` slot for the
+  `customStylesCallback` pattern (user CSS that changes at runtime). One element
+  at a consistent position, so re-`set` replaces rather than stacks — fixing the
+  prepend-on-init / append-on-update inconsistency the components have today
+  (e.g. multiselect's `.ms-custom-styles` handling). `<style>`-based on purpose:
+  user CSS may use `@import`, which constructable stylesheets reject. Core owns
+  the mechanism; the `customStylesCallback` input row stays in each component's
+  table (a `toFunction()` returning a CSS string).
+
+The `?inline` import (Vite build concern) and the `@layer variables, component,
+overrides` order (CSS guidelines, invariants #6–#9) stay authoring rules — the
+helpers take strings and don't care how you got them or how they're layered.
 
 ### 12.5 Callbacks & events — IMPLEMENTED (`src/element/`)
 

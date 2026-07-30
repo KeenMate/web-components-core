@@ -118,6 +118,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `VirtualElement`) and `createPopover()` (portaled dropdown/panel, width-match,
   placement lock). Exposed as a separate subpath so `@floating-ui/dom` stays out
   of the base import graph.
+- **Style injection** (`src/dom/adopt-styles.ts`, SPEC §12.8): two zero-dep
+  helpers for the shadow-root CSS plumbing every component re-rolls.
+  `adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (one cached
+  `CSSStyleSheet` per unique string, shared across instances; `<style>` fallback;
+  SSR-safe; dedup per root) — the `main.css?inline` case. `createStyleSlot(root,
+  { position?, className? })` → `{ set, clear, destroy }` is a per-instance,
+  replaceable `<style>` slot for the `customStylesCallback` case (consistent
+  position, so re-setting replaces rather than stacks; `<style>`-based so user
+  `@import` works). Free functions, not `BlissElement` methods — core stays
+  render-agnostic.
 
 ### Changed
 

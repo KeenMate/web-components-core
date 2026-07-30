@@ -42,6 +42,8 @@ export { getInstances, getRegisteredTags } from './global/instances.js';
 export { resolveEnumAttribute } from './dom/resolve-enum-attribute.js';
 export { createMicrotaskScheduler } from './dom/microtask-scheduler.js';
 export type { MicrotaskScheduler } from './dom/microtask-scheduler.js';
+export { adoptStyles, createStyleSlot } from './dom/adopt-styles.js';
+export type { StyleSlot, StyleSlotOptions } from './dom/adopt-styles.js';
 
 // Logging (SPEC §12.1)
 export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';

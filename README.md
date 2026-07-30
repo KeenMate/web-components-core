@@ -190,6 +190,25 @@ else a `tag#n` counter:
 > console. Set the `id` before the element first logs (i.e. in markup / before
 > connection) if you want it to appear in the label.
 
+## Style injection
+
+Two zero-dep helpers (main index) for the shadow-root CSS plumbing components
+re-roll. Core owns the *injection*, not the authoring rules (`@layer` order,
+Vite `?inline`) — and stays render-agnostic, so these are free functions, not
+base-class methods.
+
+```ts
+import { adoptStyles, createStyleSlot } from '@keenmate/web-components-core';
+import styles from './main.css?inline';
+
+// static, shared across all instances (one cached CSSStyleSheet; <style> fallback)
+adoptStyles(this.shadowRoot, styles);
+
+// per-instance user CSS (the customStylesCallback pattern) — one replaceable slot
+const slot = createStyleSlot(this.shadowRoot, { className: 'custom-styles' });
+slot.set(this.config.customStylesCallback?.());  // re-set replaces; falsy clears
+```
+
 ## Positioning (`@keenmate/web-components-core/positioning`)
 
 Floating-element positioning over a single pinned `@floating-ui/dom` — one
