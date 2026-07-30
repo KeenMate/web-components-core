@@ -336,6 +336,18 @@ consumer-facing attribute/event changes.
    attribute — consistent with every other converter.
 4. **Store/satellite pattern** — DEFERRED: stays dropzone-local until a second
    component needs it (recommended).
+5. **Derived / fallback defaults → stay in `reinit()`.** RESOLVED (by design):
+   `InputDef.default` is a static literal on purpose. A value whose "when absent"
+   is *computed from other inputs* (e.g. `searchValueMember` falling back to
+   `displayValueMember`) is NOT a declarable input concern — it is derived in
+   `reinit()`/`update()` from the already-merged `this.config`. Rationale: the
+   real cases are either **use-site / per-item** (the multiselect's search
+   fallback is `() => getItemDisplayValue(item)` — depends on the option object,
+   so it can never be an input default) or **config→config**, which would require
+   a computed-property dependency graph (which keys does it read? when does it
+   recompute? track "was it explicitly set"?) that contradicts core's flat,
+   independently-resolved input model. Surfaced as gap #3 by the multiselect
+   pseudo-migration; closed without new machinery.
 
 ---
 
