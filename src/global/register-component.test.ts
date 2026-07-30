@@ -124,6 +124,35 @@ describe('live-instance registry', () => {
     expect(spy).toHaveBeenCalledOnce(); // back to silent
   });
 
+  it('the instance log label prefers the element id, else a counter', () => {
+    const spy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    const tag = freshTag();
+    class El extends BlissElement {
+      shout(): void {
+        this.log.DATA!.debug('hi');
+      }
+    }
+    const logging = createLoggers('LABELID', ['DATA']);
+    logging.disableLogging();
+    registerComponent(tag, El as unknown as CustomElementConstructor, {
+      config: { name: 'x', version: '1' },
+      logging,
+    });
+
+    const named = document.createElement(tag) as unknown as El & { shout(): void; enableLogging(): void };
+    named.id = 'country-picker';
+    const anon = document.createElement(tag) as unknown as El & { shout(): void; enableLogging(): void };
+    document.body.append(named as unknown as Node, anon as unknown as Node);
+
+    named.enableLogging();
+    named.shout();
+    expect(spy.mock.calls[0]![0]!).toBe(`%c[LABELID:DATA]%c ${tag}#country-picker`);
+
+    anon.enableLogging();
+    anon.shout();
+    expect(spy.mock.calls[1]![0]!).toMatch(new RegExp(`^%c\\[LABELID:DATA\\]%c ${tag}#\\d+$`));
+  });
+
   it('a DOM move re-tracks the same instance without duplicating it', () => {
     const tag = freshTag();
     class El extends BlissElement {}

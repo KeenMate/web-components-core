@@ -482,8 +482,9 @@ auto-registered while the rest did not. Core consolidates it:
   `getInstances()`.
 - **Per-instance logging** — `BlissElement` exposes `this.log` (an instance
   logger per category of the tag's `createLoggers` bundle, wired by
-  `registerComponent`'s `logging` option). Each line is prefixed with a `tag#n`
-  id and gated by the MORE verbose of the type-level category level and the
+  `registerComponent`'s `logging` option). Each line is prefixed with a `tag#id`
+  handle (the element's own `id` when set, else a `tag#n` counter) and gated by
+  the MORE verbose of the type-level category level and the
   instance's own override, emitting via `console` directly so an instance can
   log while its type stays silent. `element.enableLogging(level?)` /
   `disableLogging()` / `isLoggingEnabled` are the overlay's per-instance switch:

@@ -47,8 +47,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-instance handles for a devtools overlay.
 - **Per-instance logging** (SPEC §12.3): `BlissElement` exposes `this.log` — an
   instance logger per category of the tag's `createLoggers` bundle (wired by
-  `registerComponent`'s `logging` option), each line prefixed with a `tag#n` id
-  and gated by the more verbose of the type-level level and the instance's own
+  `registerComponent`'s `logging` option), each line prefixed with a `tag#id`
+  handle (the element's `id` when set, else a `tag#n` counter) and gated by the
+  more verbose of the type-level level and the instance's own
   override. `element.enableLogging(level?)` / `disableLogging()` /
   `isLoggingEnabled` toggle logging for ONE element while its type stays silent
   — the Ctrl-Alt-C overlay case. New `LoggerBundle.forInstance(id, getOverride)`

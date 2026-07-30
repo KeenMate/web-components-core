@@ -127,17 +127,19 @@ export abstract class BlissElement extends Base {
   /**
    * Instance-scoped loggers, one per category of the bundle this component
    * registered (via `registerComponent`'s `logging` option). Each line is
-   * prefixed with a `tag#n` id and gated by the more verbose of the type-level
-   * category level and this instance's own override — so a devtools overlay can
-   * make ONE element loud while its type stays quiet (SPEC §12.3). Returns
-   * no-op loggers when the tag has no attached bundle. Prefer this over the
-   * shared type-level loggers inside a component.
+   * prefixed with a `tag#id` handle — the element's own `id` when set, else a
+   * `tag#n` counter — and gated by the more verbose of the type-level category
+   * level and this instance's own override, so a devtools overlay can make ONE
+   * element loud while its type stays quiet (SPEC §12.3). Returns no-op loggers
+   * when the tag has no attached bundle. Prefer this over the shared type-level
+   * loggers inside a component.
    */
   protected get log(): Record<string, InstanceLogger> {
     if (this.#instanceLoggers) return this.#instanceLoggers;
     const bundle = getLoggerBundle(this.localName);
     if (!bundle) return NOOP_LOGGERS; // not memoized: a later registration can still take effect
-    const id = (this.#logId ??= `${this.localName}#${++INSTANCE_SEQ}`);
+    // Prefer the element's id (readable in an overlay); fall back to a counter.
+    const id = (this.#logId ??= `${this.localName}#${this.id || ++INSTANCE_SEQ}`);
     return (this.#instanceLoggers = bundle.forInstance(id, () => this.#logLevel));
   }
 
