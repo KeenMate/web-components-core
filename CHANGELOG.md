@@ -76,6 +76,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `setLogLevel()` / `setCategoryLevel()`. Plus the opt-in `createPerfLogger()`
   (`start`/`end`/`measure`/`summary`/`clear`).
 
+- **Rich-data converters** (`src/inputs/converters.ts`, SPEC §5): `toValue`,
+  `toObjectArray`, and `toObject` — the property-first analogue of `toFunction`
+  for arrays/objects. The property path IS the shape check (`validate`), and a
+  JSON attribute path applies when the input declares an `attribute` (malformed /
+  wrong-shape → `default`; reflects as JSON). `toObjectArray` takes an optional
+  per-item `validateItem` and defaults to `[]`; `toObject` requires a non-null,
+  non-array object. Resolves the multiselect migration's gap #2 — the
+  hand-written `toObjectArray()` moves into core.
+
 ### Changed
 
 - `toText` gained an `isNullable` option: `toText({ isNullable: true })` resolves

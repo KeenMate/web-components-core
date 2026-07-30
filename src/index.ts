@@ -11,7 +11,10 @@ export {
   toFunction,
   toInt,
   toList,
+  toObject,
+  toObjectArray,
   toText,
+  toValue,
 } from './inputs/converters.js';
 export type { EnumConverter } from './inputs/converters.js';
 export { resolveFromAttribute, resolveFromProperty } from './inputs/apply.js';

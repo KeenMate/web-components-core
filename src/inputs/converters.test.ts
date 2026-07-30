@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toBool, toBytes, toCustom, toEnum, toFloat, toFunction, toInt, toList, toText } from './converters.js';
+import { toBool, toBytes, toCustom, toEnum, toFloat, toFunction, toInt, toList, toObject, toObjectArray, toText, toValue } from './converters.js';
 
 describe('toEnum', () => {
   const SELECTION = ['single', 'multiple', 'range'] as const;
@@ -181,6 +181,82 @@ describe('toFunction', () => {
     expect(c.fromAttribute).toBeUndefined();
     expect(c.validate!(() => {})).toBe(true);
     expect(c.validate!(42)).toBe(false);
+  });
+});
+
+describe('toValue', () => {
+  it('property path accepts anything without a validate', () => {
+    const c = toValue();
+    expect(c.validate).toBeUndefined();
+  });
+
+  it('property path enforces a supplied validate', () => {
+    const c = toValue<number>({ validate: (v): v is number => typeof v === 'number' });
+    expect(c.validate!(3)).toBe(true);
+    expect(c.validate!('x')).toBe(false);
+  });
+
+  it('attribute path parses JSON, falling back on blank/malformed/invalid', () => {
+    const c = toValue<{ a: number }>({ default: { a: 0 }, validate: (v): v is { a: number } => typeof v === 'object' && v !== null && 'a' in v });
+    expect(c.fromAttribute!('{"a":5}', reader(), 'x')).toEqual({ a: 5 });
+    expect(c.fromAttribute!(null, reader(), 'x')).toEqual({ a: 0 }); // absent → default
+    expect(c.fromAttribute!('  ', reader(), 'x')).toEqual({ a: 0 }); // blank → default
+    expect(c.fromAttribute!('{bad', reader(), 'x')).toEqual({ a: 0 }); // malformed → default
+    expect(c.fromAttribute!('42', reader(), 'x')).toEqual({ a: 0 }); // fails validate → default
+  });
+
+  it('reflects as JSON', () => {
+    const c = toValue();
+    expect(c.toAttribute!({ a: 1 })).toBe('{"a":1}');
+    expect(c.toAttribute!(null as never)).toBeNull();
+  });
+});
+
+describe('toObjectArray', () => {
+  it('property path requires an array; default is []', () => {
+    const c = toObjectArray();
+    expect(c.fromAttribute!(null, reader(), 'x')).toEqual([]);
+    expect(c.validate!([{ id: 1 }])).toBe(true);
+    expect(c.validate!('nope')).toBe(false);
+    expect(c.validate!({ length: 0 })).toBe(false);
+  });
+
+  it('honors a per-item guard on both paths', () => {
+    const c = toObjectArray<number>({ validateItem: (i): i is number => typeof i === 'number', default: [] });
+    expect(c.fromAttribute!('[1,2,3]', reader(), 'x')).toEqual([1, 2, 3]);
+    expect(c.fromAttribute!('[1,"x"]', reader(), 'x')).toEqual([]); // bad item → default
+    expect(c.validate!([1, 2])).toBe(true);
+    expect(c.validate!([1, 'x'])).toBe(false);
+  });
+
+  it('parses JSON on the attribute path and reflects as JSON', () => {
+    const c = toObjectArray();
+    expect(c.fromAttribute!('[{"id":1}]', reader(), 'x')).toEqual([{ id: 1 }]);
+    expect(c.fromAttribute!('{bad', reader(), 'x')).toEqual([]);
+    expect(c.toAttribute!([{ id: 1 }])).toBe('[{"id":1}]');
+  });
+});
+
+describe('toObject', () => {
+  it('requires a non-null, non-array object', () => {
+    const c = toObject();
+    expect(c.validate!({ a: 1 })).toBe(true);
+    expect(c.validate!(null)).toBe(false);
+    expect(c.validate!([1, 2])).toBe(false); // arrays rejected
+    expect(c.validate!('x')).toBe(false);
+  });
+
+  it('attribute path parses JSON objects, else default (undefined by default)', () => {
+    const c = toObject();
+    expect(c.fromAttribute!('{"a":1}', reader(), 'x')).toEqual({ a: 1 });
+    expect(c.fromAttribute!('[1]', reader(), 'x')).toBeUndefined(); // array → default
+    expect(c.fromAttribute!(null, reader(), 'x')).toBeUndefined();
+  });
+
+  it('uses a supplied default and reflects as JSON', () => {
+    const c = toObject({ default: { theme: 'light' } });
+    expect(c.fromAttribute!('bad', reader(), 'x')).toEqual({ theme: 'light' });
+    expect(c.toAttribute!({ theme: 'dark' })).toBe('{"theme":"dark"}');
   });
 });
 

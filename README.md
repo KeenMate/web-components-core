@@ -67,6 +67,9 @@ The `to*` factory library sets both paths from the same inputs:
 | `toList({ itemType?, separator?, requiredCount?, shouldTrim?, default? })` | delimited lists |
 | `toCustom(parse, { validate?, toAttribute? })` | bespoke parsers |
 | `toFunction()` | property-only callbacks |
+| `toValue({ validate?, default? })` | rich value (property = validate, attribute = JSON) |
+| `toObjectArray({ validateItem?, default? })` | array of rich items (e.g. `options`); default `[]` |
+| `toObject({ validate?, default? })` | plain non-array object |
 
 > Boolean options follow the house convention (`is`/`should`/`has`/`can`
 > prefixes): `shouldTrim`, `isEmptyAllowed`, `isNullable`, `shouldNullOnInvalid`.

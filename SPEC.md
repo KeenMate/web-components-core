@@ -144,7 +144,15 @@ toBytes({ default? })                          // "10mb" → 10485760
 toList({ itemType: 'string' | 'int', separator?, requiredCount? }) // CSV / pipe-list, with optional fixed-length validation
 toCustom(parseFn)                              // wrap any bespoke parser  (month-names, 'auto'|0..6)
 toFunction()                                   // callback: property-only, validates typeof === 'function'
+toValue({ validate?, default? })               // rich value; property = validate, attribute = JSON, reflects JSON
+toObjectArray({ validateItem?, default? })     // array of rich items (e.g. `options`); property = array, attribute = JSON; default []
+toObject({ validate?, default? })              // plain (non-array) object; property = object, attribute = JSON
 ```
+
+`toValue`/`toObjectArray`/`toObject` are the rich-data family: property-first
+(the shape check IS the `validate`), with a JSON attribute path when the input
+declares an `attribute`. They are the core home for the "property-only array /
+object" pattern components used to hand-write (SPEC gap #2, resolved).
 
 Each factory returns a `Converter<V>`; `toEnum`/`toList`/… set both
 `fromAttribute` and `validate` from the same inputs, so a property

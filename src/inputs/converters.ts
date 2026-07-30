@@ -234,6 +234,100 @@ export function toList<E extends string | number = string>(opts: {
 }
 
 /**
+ * Rich value of arbitrary shape — the property-first analogue of {@link toText}
+ * /{@link toInt} for data too complex for a plain scalar. The PROPERTY path
+ * accepts any value (or one that passes `validate`); the ATTRIBUTE path (only if
+ * the input declares an `attribute`) parses the raw string as JSON, falling back
+ * to `default` on malformed JSON or a value that fails `validate`. Reflects back
+ * as JSON. For arrays/objects specifically, prefer {@link toObjectArray} /
+ * {@link toObject}, which bake in the shape check.
+ */
+export function toValue<V = unknown>(
+  opts: { validate?: (value: unknown) => value is V; default?: V } = {},
+): Converter<V> {
+  const fallback = opts.default as V;
+  return {
+    fromAttribute(raw) {
+      if (raw === null || raw.trim() === '') return fallback;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+      if (opts.validate && !opts.validate(parsed)) return fallback;
+      return parsed as V;
+    },
+    validate: opts.validate,
+    toAttribute(value) {
+      return value == null ? null : JSON.stringify(value);
+    },
+  };
+}
+
+/**
+ * Array of rich items (e.g. an `options` data array). The property path requires
+ * an array — each item optionally checked by `validateItem`; the attribute path
+ * parses JSON. Absent / blank / malformed / wrong-shape → `default` (default
+ * `[]`). Reflects as JSON. This is the core home for the property-only rich-array
+ * pattern components used to hand-write.
+ */
+export function toObjectArray<E = unknown>(
+  opts: { validateItem?: (item: unknown) => item is E; default?: E[] } = {},
+): Converter<E[]> {
+  const fallback = opts.default ?? [];
+  const isValid = (value: unknown): value is E[] =>
+    Array.isArray(value) && (!opts.validateItem || value.every(opts.validateItem));
+  return {
+    fromAttribute(raw) {
+      if (raw === null || raw.trim() === '') return fallback;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+      return isValid(parsed) ? parsed : fallback;
+    },
+    validate: isValid,
+    toAttribute(value) {
+      return Array.isArray(value) ? JSON.stringify(value) : null;
+    },
+  };
+}
+
+/**
+ * Plain object (a config map, etc.). The property path requires a non-null,
+ * NON-array object (optionally checked by `validate`); the attribute path parses
+ * JSON. Absent / blank / malformed / wrong-shape → `default` (default
+ * `undefined` — objects rarely have a natural empty sentinel; pass `{}` if you
+ * want one). Reflects as JSON.
+ */
+export function toObject<V extends object = Record<string, unknown>>(
+  opts: { validate?: (value: unknown) => value is V; default?: V } = {},
+): Converter<V> {
+  const fallback = opts.default as V;
+  const isValid = (value: unknown): value is V =>
+    typeof value === 'object' && value !== null && !Array.isArray(value) && (!opts.validate || opts.validate(value));
+  return {
+    fromAttribute(raw) {
+      if (raw === null || raw.trim() === '') return fallback;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return fallback;
+      }
+      return isValid(parsed) ? parsed : fallback;
+    },
+    validate: isValid,
+    toAttribute(value) {
+      return value == null ? null : JSON.stringify(value);
+    },
+  };
+}
+
+/**
  * Wrap a bespoke parser (month-names, `'auto' | 0..6`, …). Supply an optional
  * `validate` / `toAttribute` when the input also travels the property or
  * reflection paths; without `validate`, property assignments pass through.
