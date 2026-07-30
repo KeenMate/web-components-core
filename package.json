@@ -20,6 +20,10 @@
     "./cem": {
       "types": "./dist/cem/index.d.ts",
       "import": "./dist/cem/index.js"
+    },
+    "./positioning": {
+      "types": "./dist/positioning/index.d.ts",
+      "import": "./dist/positioning/index.js"
     }
   },
   "files": [
@@ -34,6 +38,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@floating-ui/dom": "^1.8.0",
     "loglevel": "^1.9.2"
   },
   "devDependencies": {

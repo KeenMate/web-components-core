@@ -30,9 +30,10 @@ next to the code they cover. Source uses explicit `.js` extensions on relative
 imports (moduleResolution `Bundler`) and `verbatimModuleSyntax` (type-only
 imports must use `import type`).
 
-Runtime dependencies: **`loglevel`** only (for the logging module, below). The
-positioning module of §12.2 (which would add `@floating-ui/dom`) is not built —
-don't add it without confirming shape.
+Runtime dependencies: **`loglevel`** (logging) and **`@floating-ui/dom`** (the
+`/positioning` module, §12.2). `@floating-ui/dom` is imported only under
+`src/positioning/`, so it stays out of the base import graph — components that
+don't position pull only `loglevel`.
 
 ## Why this package exists
 
@@ -159,10 +160,24 @@ DOM fixtures (pure DOM, **zero deps**): `mount`/`cleanup`, `mountBeforeUpgrade`
 `listen()` → `EventSpy`. Playwright/a11y-contrast fixtures are **deferred** (out
 of the input-model core).
 
+## Positioning (`src/positioning/`, SPEC §12.2 — implemented)
+
+`@keenmate/web-components-core/positioning` is a subpath over one pinned
+`@floating-ui/dom`. `anchor(floating, reference, opts)` is the low-level
+primitive (`'fixed'` default; `offset→size→flip→shift` middleware;
+`matchWidth: 'min'|'exact'`; `lockPlacement` → `flip({ fallbackStrategy:
+'initialPlacement' })`; `data-theme` inheritance for portaled layers per C-CS-10;
+optional `platform` escape hatch) returning `{ update, destroy }`.
+`createTooltip()` (hover/focus + delay + `followCursor` via `VirtualElement`) and
+`createPopover()` (portaled dropdown/panel, width-match, placement lock) are thin
+wrappers. Decisions: follow-cursor is a tooltip option not a preset; the bespoke
+shadow-DOM platform was NOT ported (1.8 handles it + the `platform` hatch). Tests
+mock `@floating-ui/dom` (jsdom has no layout).
+
 ## Beyond v1
 
-§12 tracks further shared modules not yet built — positioning wrappers over
-`@floating-ui/dom` (§12.2), theming helpers. These are **not** in scope; don't
-build them without confirming the shape. Decisions are recorded in §11
-(resolved), §12.1 (logger), §12.3 (global registration), §12.5 (events),
-§12.6 (CEM), §12.7 (testing) — all done.
+§12's remaining unbuilt candidate is theming / CSS cascade-layer helpers (§12.4)
+— largely governed by the CSS guidelines and may need no runtime code. **Not** in
+scope; don't build without confirming the shape. Decisions are recorded in §11
+(resolved), §12.1 (logger), §12.2 (positioning), §12.3 (global registration),
+§12.5 (events), §12.6 (CEM), §12.7 (testing) — all done.

@@ -1,0 +1,183 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+// Mock floating-ui: layout-free + deterministic (jsdom has no layout, no ResizeObserver).
+vi.mock('@floating-ui/dom', () => ({
+  computePosition: vi.fn(() =>
+    Promise.resolve({ x: 10, y: 20, placement: 'bottom-start', strategy: 'fixed', middlewareData: {} }),
+  ),
+  autoUpdate: vi.fn((_ref: unknown, _float: unknown, update: () => void) => {
+    update(); // fire once, like the real thing
+    return vi.fn(); // cleanup
+  }),
+  offset: vi.fn((value: unknown) => ({ name: 'offset', value })),
+  flip: vi.fn((options: unknown) => ({ name: 'flip', options })),
+  shift: vi.fn((options: unknown) => ({ name: 'shift', options })),
+  size: vi.fn((options: unknown) => ({ name: 'size', options })),
+}));
+
+import * as fui from '@floating-ui/dom';
+import { anchor, createPopover, createTooltip } from './index.js';
+
+const mw = () => (vi.mocked(fui.computePosition).mock.calls[0]![2]!.middleware ?? []) as { name: string }[];
+
+beforeEach(() => vi.clearAllMocks());
+afterEach(() => document.body.replaceChildren());
+
+describe('anchor', () => {
+  it('positions the floating element and reports the resolved placement', async () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    document.body.append(floating, reference);
+    const onPlaced = vi.fn();
+
+    const handle = anchor(floating, reference, { onPlaced });
+    await Promise.resolve(); // let computePosition resolve
+
+    expect(floating.style.position).toBe('fixed');
+    expect(floating.style.left).toBe('10px');
+    expect(floating.style.top).toBe('20px');
+    expect(onPlaced).toHaveBeenCalledWith('bottom-start');
+
+    const cleanup = vi.mocked(fui.autoUpdate).mock.results[0]!.value as ReturnType<typeof vi.fn>;
+    handle.destroy();
+    expect(cleanup).toHaveBeenCalledOnce();
+  });
+
+  it('builds middleware in order offset → flip → shift by default', () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    anchor(floating, reference);
+    expect(mw().map((m) => m.name)).toEqual(['offset', 'flip', 'shift']);
+    expect(vi.mocked(fui.offset)).toHaveBeenCalledWith(4);
+    expect(vi.mocked(fui.shift)).toHaveBeenCalledWith({ padding: 8 });
+  });
+
+  it('adds size() for matchWidth and omits flip/shift when disabled', () => {
+    anchor(document.createElement('div'), document.createElement('button'), {
+      matchWidth: 'min',
+      flip: false,
+      shift: false,
+    });
+    expect(mw().map((m) => m.name)).toEqual(['offset', 'size']);
+  });
+
+  it('locks placement by feeding flip an initialPlacement fallback', () => {
+    anchor(document.createElement('div'), document.createElement('button'), { lockPlacement: true });
+    expect(vi.mocked(fui.flip)).toHaveBeenCalledWith({ fallbackStrategy: 'initialPlacement' });
+  });
+
+  it('skips autoUpdate but still positions when autoUpdate:false', async () => {
+    anchor(document.createElement('div'), document.createElement('button'), { autoUpdate: false });
+    await Promise.resolve();
+    expect(vi.mocked(fui.autoUpdate)).not.toHaveBeenCalled();
+    expect(vi.mocked(fui.computePosition)).toHaveBeenCalledOnce();
+  });
+
+  it('inherits data-theme from the nearest themed ancestor (C-CS-10)', () => {
+    const root = document.createElement('div');
+    root.setAttribute('data-theme', 'dark');
+    const reference = document.createElement('button');
+    root.append(reference);
+    document.body.append(root);
+    const floating = document.createElement('div');
+
+    anchor(floating, reference, { inheritThemeFrom: reference });
+    expect(floating.getAttribute('data-theme')).toBe('dark');
+  });
+});
+
+describe('createTooltip', () => {
+  it('shows on mouseenter and hides on mouseleave, toggling the visible class', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const tip = createTooltip({ trigger, content: 'hi', cssClass: 'tt' });
+
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+    await Promise.resolve();
+    expect(tip.isVisible).toBe(true);
+    expect(tip.element.classList.contains('is-visible')).toBe(true);
+    expect(tip.element.textContent).toBe('hi');
+    expect(tip.element.className).toContain('tt');
+    expect(document.body.contains(tip.element)).toBe(true);
+
+    trigger.dispatchEvent(new MouseEvent('mouseleave'));
+    expect(tip.isVisible).toBe(false);
+    expect(document.body.contains(tip.element)).toBe(false);
+    tip.destroy();
+  });
+
+  it('respects a show delay', () => {
+    vi.useFakeTimers();
+    try {
+      const trigger = document.createElement('button');
+      document.body.append(trigger);
+      const tip = createTooltip({ trigger, content: 'hi', delay: { show: 200 } });
+
+      trigger.dispatchEvent(new MouseEvent('mouseenter'));
+      expect(tip.isVisible).toBe(false); // still waiting
+      vi.advanceTimersByTime(200);
+      expect(tip.isVisible).toBe(true);
+      tip.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('followCursor anchors to a moving virtual element', async () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const tip = createTooltip({ trigger, content: 'hi', followCursor: true });
+
+    tip.show();
+    await Promise.resolve();
+    // the reference passed to computePosition is the virtual element (has getBoundingClientRect, no nodeType)
+    const ref = vi.mocked(fui.computePosition).mock.calls[0]![0] as { getBoundingClientRect: () => DOMRect };
+    expect(typeof ref.getBoundingClientRect).toBe('function');
+
+    trigger.dispatchEvent(new MouseEvent('mousemove', { clientX: 5, clientY: 7 }));
+    const rect = ref.getBoundingClientRect();
+    expect(rect.x).toBe(5);
+    expect(rect.y).toBe(7);
+    tip.destroy();
+  });
+
+  it('destroy removes the trigger listeners', () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const tip = createTooltip({ trigger, content: 'hi' });
+    tip.destroy();
+    trigger.dispatchEvent(new MouseEvent('mouseenter'));
+    expect(tip.isVisible).toBe(false); // listener gone
+  });
+});
+
+describe('createPopover', () => {
+  it('opens (mounts + anchors) and closes (unmounts)', async () => {
+    const reference = document.createElement('button');
+    const panel = document.createElement('div');
+    document.body.append(reference);
+
+    const pop = createPopover({ reference, panel, matchWidth: 'exact' });
+    expect(pop.isOpen).toBe(false);
+
+    pop.open();
+    await Promise.resolve();
+    expect(pop.isOpen).toBe(true);
+    expect(document.body.contains(panel)).toBe(true);
+    expect(vi.mocked(fui.size)).toHaveBeenCalled(); // matchWidth → size()
+    expect(vi.mocked(fui.computePosition).mock.calls[0]![2]!.placement).toBe('bottom-start');
+
+    pop.close();
+    expect(pop.isOpen).toBe(false);
+    expect(document.body.contains(panel)).toBe(false);
+  });
+
+  it('is idempotent on double open/close', () => {
+    const pop = createPopover({ reference: document.createElement('button'), panel: document.createElement('div') });
+    pop.open();
+    pop.open();
+    expect(vi.mocked(fui.autoUpdate)).toHaveBeenCalledOnce();
+    pop.close();
+    pop.close();
+  });
+});

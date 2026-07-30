@@ -108,6 +108,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   injects `typescript`).
 - **`InputDef` / `EventDef` doc metadata**: optional `description` and
   `deprecated` fields, read by the CEM tooling and otherwise ignored at runtime.
+- **Positioning** (`@keenmate/web-components-core/positioning`, SPEC §12.2): a
+  floating-element positioning module over one pinned `@floating-ui/dom` (ends
+  the 1.5/1.7 version drift across the five components). `anchor()` — the
+  low-level primitive (`'fixed'` default, `offset→size→flip→shift` middleware,
+  `matchWidth: 'min'|'exact'`, `lockPlacement`, `autoUpdate`, `data-theme`
+  inheritance for portaled layers per C-CS-10, and a `platform` escape hatch) —
+  plus `createTooltip()` (hover/focus, delay, `followCursor` via a
+  `VirtualElement`) and `createPopover()` (portaled dropdown/panel, width-match,
+  placement lock). Exposed as a separate subpath so `@floating-ui/dom` stays out
+  of the base import graph.
 
 ### Changed
 

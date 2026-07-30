@@ -428,7 +428,38 @@ Optional companion module: `createPerfLogger(namespace)` (treeview's
 `perfStart` / `perfEnd` / `perfMeasure` / `perfSummary`), opt-in per
 component.
 
-### 12.2 Positioning — surveyed (`@floating-ui/dom`)
+### 12.2 Positioning — IMPLEMENTED (`src/positioning/`)
+
+**Status:** built as the `@keenmate/web-components-core/positioning` subpath over
+a single pinned `@floating-ui/dom` (`^1.8`) — the one added runtime dependency,
+kept out of the base import graph so components that don't position pay nothing.
+Ships the proposed shape below: `anchor()` + `createTooltip()` +
+`createPopover()`. Resolutions of the survey's open points:
+
+- **follow-cursor** → a `followCursor?: boolean` option on `createTooltip` (it
+  anchors to a `VirtualElement` tracking the pointer), NOT a third preset.
+- **Custom shadow-DOM platform** → NOT ported. floating-ui 1.8's built-in shadow
+  handling covers it; `anchor` exposes an optional `platform` escape hatch for
+  any residual edge case rather than baking in multiselect's bespoke (and
+  unverifiable-here) platform.
+- **`data-theme` inheritance (C-CS-10)** → `anchor` copies the nearest
+  `data-theme` (via `closest('[data-theme]')`) from `inheritThemeFrom` onto the
+  floating element; the presets default `inheritThemeFrom` to the trigger /
+  reference, so portaled layers keep the theme automatically.
+- **Width-matching** → one `matchWidth: 'min' | 'exact' | false` (via `size()`),
+  replacing the three per-component hacks.
+- **`lockPlacement`** → feeds `flip({ fallbackStrategy: 'initialPlacement' })`,
+  so the initial placement is preferred over reordering.
+
+Tests mock `@floating-ui/dom` (jsdom has no layout / `ResizeObserver`) and cover
+the wrapper contract: middleware order/selection, `matchWidth`→`size`,
+`lockPlacement`→flip fallback, theme inheritance, tooltip show/hide + delay +
+follow-cursor + listener teardown, popover open/close idempotency. The original
+survey follows.
+
+---
+
+### 12.2 (survey) Positioning — `@floating-ui/dom`
 
 Context: **all five** depend on `@floating-ui/dom`, on **three drifted
 versions** (`1.5.3` / `1.7.4` / `1.7.6`), and re-wrap it in ~15 call

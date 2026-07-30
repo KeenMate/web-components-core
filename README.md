@@ -16,7 +16,9 @@ that correctness lives in a single place and can't drift.
 npm install @keenmate/web-components-core
 ```
 
-Runtime dependency: **`loglevel`** only.
+Runtime dependencies: **`loglevel`** (logging) and **`@floating-ui/dom`** — the
+latter used only by the `/positioning` subpath, so it stays out of the base
+import graph unless you position.
 
 ## The two load-bearing ideas
 
@@ -187,6 +189,31 @@ else a `tag#n` counter:
 > always the reliable handle; the string label is a convenience for reading the
 > console. Set the `id` before the element first logs (i.e. in markup / before
 > connection) if you want it to appear in the label.
+
+## Positioning (`@keenmate/web-components-core/positioning`)
+
+Floating-element positioning over a single pinned `@floating-ui/dom` — one
+low-level `anchor()` primitive plus `createTooltip()` and `createPopover()`
+presets, replacing the ~15 hand-rolled call sites across the components. A
+separate subpath, so `@floating-ui/dom` is only pulled in when you position.
+
+```ts
+import { createPopover, createTooltip } from '@keenmate/web-components-core/positioning';
+
+// dropdown/panel — portaled to <body>, width-matched, keeps the theme
+const dropdown = createPopover({ reference: input, panel, matchWidth: 'min' });
+dropdown.open();   // mount + position + autoUpdate
+dropdown.close();  // unmount + stop
+
+// tooltip — hover/focus with a delay; followCursor: true to track the pointer
+const tip = createTooltip({ trigger, content: 'Help text', delay: { show: 200 } });
+```
+
+`anchor(floating, reference, opts)` returns `{ update, destroy }`; options:
+`placement` (default `'bottom-start'`), `strategy` (default `'fixed'`), `offset`,
+`flip`, `shift`, `matchWidth: 'min' | 'exact'`, `lockPlacement`, `autoUpdate`,
+`inheritThemeFrom` (copies `data-theme` onto portaled layers — C-CS-10), and a
+`platform` escape hatch.
 
 ## Testing (`@keenmate/web-components-core/testing`)
 
