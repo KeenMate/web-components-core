@@ -8,7 +8,11 @@
  * shape behavior and go through `runHook` (return value honored).
  */
 
-/** Compile-time map of event name → its `CustomEvent.detail` type. */
+/**
+ * Compile-time map of event name → its `CustomEvent.detail` type, passed as
+ * `BlissElement<TEvents>`. Declare it as a `type` alias, not an `interface` —
+ * interfaces lack the implicit index signature this `Record` constraint needs.
+ */
 export type EventMap = Record<string, unknown>;
 
 /** One declared outward event. A bare string is shorthand for `{ name }`. */
