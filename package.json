@@ -24,6 +24,9 @@
     "test": "vitest run",
     "test:watch": "vitest"
   },
+  "dependencies": {
+    "loglevel": "^1.9.2"
+  },
   "devDependencies": {
     "jsdom": "^24.1.0",
     "typescript": "^5.5.0",

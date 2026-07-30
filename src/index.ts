@@ -27,3 +27,9 @@ export { define } from './element/define.js';
 export { resolveEnumAttribute } from './dom/resolve-enum-attribute.js';
 export { createMicrotaskScheduler } from './dom/microtask-scheduler.js';
 export type { MicrotaskScheduler } from './dom/microtask-scheduler.js';
+
+// Logging (SPEC §12.1)
+export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';
+export type { LoggerBundle, Logger, LogLevelDesc } from './logging/create-loggers.js';
+export { createPerfLogger } from './logging/perf-logger.js';
+export type { PerfLogger } from './logging/perf-logger.js';
