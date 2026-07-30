@@ -130,9 +130,39 @@ handling is the ordering bug we avoid) — an amendment to §12.1's original tex
 Note: `BlissElement`'s input-validation warnings deliberately bypass this logger
 and call `console.warn` directly, so they surface even when logging is disabled.
 
+## CEM tooling (`src/cem/`, SPEC §12.6 — implemented)
+
+`@keenmate/web-components-core/cem` is a **build-time-only** subpath (no runtime
+dependency — the analyzer injects `typescript`). `blissInputsPlugin()` teaches
+`@custom-elements-manifest/analyzer` to read the `static inputs` / `static
+events` tables (invisible to the stock analyzer). All extraction is in the pure,
+unit-tested `extractBlissClass(ts, node, sourceFile)`; the plugin is a thin
+analyze-then-`moduleLinkPhase`-merge wrapper. `blissAnalyzerConfig()` is the
+shared config preset. **Source-of-truth split (SPEC §8 amendment):** the table +
+converter give the *structure* (attr↔prop, type, default, `reflect`, enum
+members); the optional `description`/`deprecated` fields on each `InputDef` /
+`EventDef` row (or a leading comment) give the *prose*. Those doc fields are
+ignored at runtime. Keep `static inputs`/`static events` as literals (or a
+hoisted `const … as const`) — the extractor reads AST literals, not runtime
+values.
+
+## Testing utilities (`src/testing/` + `whenSettled()`, SPEC §12.7 — implemented)
+
+`BlissElement.whenSettled(): Promise<void>` (in **core**, not just tests)
+resolves after the pending flush's `reinit()`/`update()` runs — immediately when
+nothing is pending, after the microtask for loose assignments, already-settled
+after `setAttributes()`/`batch()`, on next connect for detached changes. It's the
+deterministic read-after-write signal.
+`@keenmate/web-components-core/testing` is a separate subpath of runner-agnostic
+DOM fixtures (pure DOM, **zero deps**): `mount`/`cleanup`, `mountBeforeUpgrade`
+(pre-upgrade capture), `uniqueTag`/`defineOnce`, `nextTick`/`nextFrame`, and
+`listen()` → `EventSpy`. Playwright/a11y-contrast fixtures are **deferred** (out
+of the input-model core).
+
 ## Beyond v1
 
 §12 tracks further shared modules not yet built — positioning wrappers over
-`@floating-ui/dom` (§12.2), CEM tooling, theming helpers. These are **not** in
-scope; don't build them without confirming the shape. Decisions are recorded in
-§11 (resolved) and §12.1 (logger, done).
+`@floating-ui/dom` (§12.2), theming helpers. These are **not** in scope; don't
+build them without confirming the shape. Decisions are recorded in §11
+(resolved), §12.1 (logger), §12.3 (global registration), §12.5 (events),
+§12.6 (CEM), §12.7 (testing) — all done.

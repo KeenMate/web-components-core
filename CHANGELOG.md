@@ -84,6 +84,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   per-item `validateItem` and defaults to `[]`; `toObject` requires a non-null,
   non-array object. Resolves the multiselect migration's gap #2 — the
   hand-written `toObjectArray()` moves into core.
+- **`BlissElement.whenSettled()`** (SPEC §12.7): a first-class "await the
+  reactive pipeline" signal. Resolves once every staged input change has flushed
+  and its `reinit()`/`update()` has run (immediately when nothing is pending;
+  after the coalescing microtask for loose property assignments; already-settled
+  after `setAttributes()`/`batch()`; on the next connect for changes staged while
+  detached). Deterministic read-after-write for tests and consumers alike.
+- **Testing utilities** (`@keenmate/web-components-core/testing`, SPEC §12.7):
+  runner-agnostic DOM fixtures (pure DOM, zero deps) — `mount(html|element)` with
+  tracked `cleanup()`, `mountBeforeUpgrade()` for the pre-upgrade capture path,
+  `uniqueTag()` / `defineOnce()`, `nextTick()` / `nextFrame()`, and
+  `listen(target, type)` → an `EventSpy` for asserting §12.5 emits without a
+  mocking library. Exposed as a separate subpath so it never enters the runtime
+  bundle.
+- **CEM tooling** (`@keenmate/web-components-core/cem`, SPEC §12.6): a
+  `@custom-elements-manifest/analyzer` plugin (`blissInputsPlugin`) that reads the
+  `static inputs` / `static events` tables so the manifest is generated from the
+  single source of truth — structure from each row + its converter (attr↔prop,
+  type, default, `reflect`, enum members), prose from optional `description` /
+  `deprecated` fields on the row (or a leading comment). Ships with a shared
+  analyzer config preset (`blissAnalyzerConfig`) and a pure, unit-tested extractor
+  (`extractBlissClass`). Build-time only — no runtime dependency (the analyzer
+  injects `typescript`).
+- **`InputDef` / `EventDef` doc metadata**: optional `description` and
+  `deprecated` fields, read by the CEM tooling and otherwise ignored at runtime.
 
 ### Changed
 

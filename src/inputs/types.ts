@@ -49,4 +49,12 @@ export interface InputDef<V = unknown> {
   on?: Reactivity;
   /** Reflect property → attribute on assignment? Requires `attribute` + `converter.toAttribute`. */
   reflect?: boolean;
+  /**
+   * Human description for docs / editor IntelliSense (the CEM tooling reads it —
+   * SPEC §12.4). The table already carries the STRUCTURE (name, type, default);
+   * this is the "extra help text" only a person can write. Ignored at runtime.
+   */
+  description?: string;
+  /** Doc metadata: mark this input deprecated (`true`) or with a reason string. Ignored at runtime. */
+  deprecated?: boolean | string;
 }

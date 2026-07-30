@@ -65,6 +65,7 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   readonly #boundFlush = (): void => this.#flush();
   #pending: Record<string, unknown> | null = null;
   #pendingReinit = false;
+  #settleResolvers: Array<() => void> = [];
   #connectedOnce = false;
   #reflecting = false;
   #logId?: string;
@@ -136,6 +137,26 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   batch(fn: () => void): void {
     fn();
     this.#flushNow();
+  }
+
+  /**
+   * Resolves once the element is **settled** — i.e. every staged input change
+   * has been applied and the resulting `reinit()`/`update()` has run. If nothing
+   * is pending it resolves immediately (a microtask); otherwise it resolves at
+   * the end of the next flush. This is the deterministic "await the pipeline"
+   * signal for tests AND consumers — read rendered state right after it, instead
+   * of guessing with a bare `await Promise.resolve()`.
+   *
+   * Note: loose property assignments coalesce on a microtask, so
+   * `el.x = …; await el.whenSettled()` awaits that microtask. `setAttributes()`
+   * and `batch()` flush synchronously, so after either the element is already
+   * settled. While the element is **detached**, pending changes are held (the
+   * flush no-ops until connected), so the promise resolves on the next connect's
+   * flush — not before the change is actually applied.
+   */
+  whenSettled(): Promise<void> {
+    if (!this.#pending && !this.#pendingReinit) return Promise.resolve();
+    return new Promise<void>((resolve) => this.#settleResolvers.push(resolve));
   }
 
   // ── subclass surface ─────────────────────────────────────────────────────
@@ -453,5 +474,14 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
     // A reinit rebuilds from full config, so it absorbs any update keys in the batch.
     if (reinit) this.reinit();
     else if (partial && Object.keys(partial).length > 0) this.update(partial);
+    this.#resolveSettled();
+  }
+
+  /** Resolve everyone awaiting {@link whenSettled} for the flush that just ran. */
+  #resolveSettled(): void {
+    if (this.#settleResolvers.length === 0) return;
+    const resolvers = this.#settleResolvers;
+    this.#settleResolvers = [];
+    for (const resolve of resolvers) resolve();
   }
 }

@@ -284,6 +284,18 @@ bullet-per-value). Independent of the parser structure. *Optionally* a
 converter like `toEnum(VALUES)` may expose `.values` for future
 autodetect — but nothing depends on it.
 
+**Amendment (source-of-truth split, §12.4 CEM tooling).** With the CEM
+plugin built, this splits cleanly: the input/event **table owns the
+STRUCTURE** (attribute↔property mapping, type, default, `reflect`, enum
+members — all derivable from the row + its converter), and **prose stays
+authored by a human** — now as an optional `description` / `deprecated`
+field *on the row itself* (`InputDef.description`, `EventDef.description`),
+or a leading comment on the row. So JSDoc-style structural re-declaration
+(`@attr {single|multiple} selection-mode`) is gone — it can't drift from
+the converter — and authors write only the "extra help text." This
+*tightens* the original rule (JSDoc-only) rather than contradicting it:
+descriptions are still hand-authored, they just live in the one table.
+
 ---
 
 ## 9. Migration plan (per repo, low-risk, ordered)
@@ -520,12 +532,66 @@ auto-registered while the rest did not. Core consolidates it:
 - **Theming / CSS cascade-layer helpers** — the `@layer` + `?inline`
   main.css import pattern (largely governed by the CSS guidelines; may
   not need runtime code).
-- **CEM tooling preset** — the analyzer config + a plugin that reads the
-  input table for editor metadata (ties to `custom-elements-manifest.md`;
-  natural v2).
-- **Testing utilities** — shared Playwright/vitest fixtures (SSR stub,
-  upgrade-timing helpers, contrast checks).
+- **CEM tooling preset** — IMPLEMENTED, see §12.6 (`/cem`: analyzer config
+  preset + a plugin that reads the `static inputs` / `static events` tables).
+- **Testing utilities** — IMPLEMENTED, see §12.7 (`/testing`: runner-agnostic
+  mount/upgrade/event fixtures) + `whenSettled()` on `BlissElement`. The
+  Playwright/a11y-contrast layer is deferred (out of the input-model core).
 ```
+
+### 12.6 CEM tooling preset — IMPLEMENTED (`src/cem/`)
+
+**Status:** built as the `@keenmate/web-components-core/cem` subpath (build-time
+only — no runtime dependency; the analyzer injects the `typescript` API). The
+stock `@custom-elements-manifest/analyzer` can't see our public surface — it
+lives in `static inputs` / `static events` tables, not the Lit-style patterns it
+recognizes — so without help the manifest would be empty.
+
+- **`blissInputsPlugin()`** — an analyzer plugin. In `analyzePhase` it extracts
+  each table-driven class; in `moduleLinkPhase` it merges the results into the
+  manifest's class declaration (augments, never replaces, the analyzer's own
+  analysis).
+- **`extractBlissClass(ts, classNode, sourceFile)`** — the pure, unit-tested
+  core. From each `InputDef` row it derives an `attribute` (kebab, with
+  `fieldName` back-link) and a `field` member: **type** from the converter
+  (`toEnum([...])` → union, `toInt` → `number`, `toText({isNullable})` →
+  `string | null`, `toBool('tristate')` → `boolean | null`, …), **default** from
+  the row's `default` or the converter's, **reflects** from `reflect`, and
+  **description/deprecated** from the row (or a leading comment). It follows an
+  identifier to a `const TABLE = [...] as const` and unwraps `as const` /
+  parentheses, so both inline and hoisted tables work. Events come from bare
+  names or `EventDef` objects.
+- **`blissAnalyzerConfig(options?)`** — the shared config preset (globs,
+  excludes, `outdir`, plugins) every component's `custom-elements-manifest.config.js`
+  extends, with the plugin pre-wired.
+
+The source-of-truth split (§8 amendment): structure from the table, prose from
+the optional `description` / `deprecated` fields on each row.
+
+### 12.7 Testing utilities — IMPLEMENTED (`src/testing/` + `whenSettled()`)
+
+**Status:** built. Two parts.
+
+- **`BlissElement.whenSettled(): Promise<void>`** — a first-class "await the
+  pipeline" signal, in **core** (not just tests). Resolves once every staged
+  change has flushed and its `reinit()`/`update()` has run; resolves immediately
+  when nothing is pending. `setAttributes()`/`batch()` flush synchronously (so
+  the element is already settled after them); loose property assignment coalesces
+  on a microtask (so `el.x = …; await el.whenSettled()` awaits it). While
+  detached, pending changes are held, so the promise resolves on the next
+  connect's flush. This replaces the flaky bare-`await Promise.resolve()` guess
+  in tests AND gives consumers a deterministic read-after-write point.
+- **`@keenmate/web-components-core/testing`** — runner-agnostic DOM fixtures
+  (pure DOM, zero deps, so they work under vitest+jsdom or a real browser):
+  `mount(html|element)` (+ tracked `cleanup()`), `mountBeforeUpgrade()` (exercise
+  the pre-upgrade property-capture path), `uniqueTag()` / `defineOnce()`,
+  `nextTick()` / `nextFrame()`, and `listen(target, type)` → an `EventSpy`
+  (`count` / `events` / `last` / `lastDetail` / `stop()`) for asserting §12.5
+  emits without a mocking library.
+
+The Playwright + a11y/contrast fixtures the original §12.4 note mentioned are
+**deferred** — they need a real-browser toolchain and belong closer to a
+design-system/theming package than the input-model core.
 
 ### 12.5 Callbacks & events — IMPLEMENTED (`src/element/`)
 

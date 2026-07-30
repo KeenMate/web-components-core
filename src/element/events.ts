@@ -30,6 +30,10 @@ export interface EventDef<D = unknown> {
   bubbles?: boolean;
   composed?: boolean;
   cancelable?: boolean;
+  /** Human description for docs / editor IntelliSense (CEM tooling, SPEC §12.4). Ignored at runtime. */
+  description?: string;
+  /** Doc metadata: mark this event deprecated (`true`) or with a reason string. Ignored at runtime. */
+  deprecated?: boolean | string;
 }
 
 /** An `EventDef` with its property name resolved (`null` = no managed property). */

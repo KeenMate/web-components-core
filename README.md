@@ -104,7 +104,10 @@ class WebMultiSelect extends BlissElement {
   state survives. Keep them balanced.
 
 Batch many changes into one reinit/update with `setAttributes({ ... })` or
-`batch(() => { ... })`.
+`batch(() => { ... })`. To await the pipeline deterministically — in a test or
+before reading rendered state — use **`await el.whenSettled()`**: it resolves
+once every staged change has flushed and its `reinit()`/`update()` has run
+(immediately when nothing is pending).
 
 ## Global registration (`window.components`)
 
@@ -184,6 +187,52 @@ else a `tag#n` counter:
 > always the reliable handle; the string label is a convenience for reading the
 > console. Set the `id` before the element first logs (i.e. in markup / before
 > connection) if you want it to appear in the label.
+
+## Testing (`@keenmate/web-components-core/testing`)
+
+Runner-agnostic DOM fixtures (pure DOM, zero deps — vitest+jsdom or a real
+browser). Pair them with `await el.whenSettled()` to await the reactive pipeline.
+
+```ts
+import { mount, cleanup, listen, uniqueTag, defineOnce } from '@keenmate/web-components-core/testing';
+
+afterEach(cleanup);
+
+it('emits select when picked', async () => {
+  const tag = defineOnce(uniqueTag(), MyElement);
+  const el = mount<MyElement>(`<${tag} selection-mode="multiple"></${tag}>`);
+  const spy = listen(el, 'select');
+  el.pick('a');
+  await el.whenSettled();
+  expect(spy.lastDetail).toEqual({ option: 'a' });
+});
+```
+
+`mount` / `cleanup`, `mountBeforeUpgrade` (pre-upgrade property capture),
+`uniqueTag` / `defineOnce`, `nextTick` / `nextFrame`, and `listen` → an
+`EventSpy` (`count` / `events` / `last` / `lastDetail` / `stop()`).
+
+## Editor metadata (`@keenmate/web-components-core/cem`)
+
+A [Custom Elements Manifest](https://github.com/webcomponents/custom-elements-manifest)
+analyzer plugin that reads the `static inputs` / `static events` tables, so the
+manifest — and the HTML autocomplete/hover editors build from it — is generated
+from the single source of truth: **structure** from each row + its converter
+(attribute↔property, type, default, `reflect`, enum members), **prose** from
+optional `description` / `deprecated` fields on the row. Build-time only.
+
+```js
+// custom-elements-manifest.config.js
+import { blissAnalyzerConfig } from '@keenmate/web-components-core/cem';
+export default blissAnalyzerConfig();
+```
+
+```ts
+// a row carries its own help text — no @attr re-declaration to drift
+{ configKey: 'selectionMode', attribute: 'selection-mode',
+  converter: toEnum(['single', 'multiple'], { default: 'single' }),
+  description: 'Whether the user can pick one option or several.' }
+```
 
 ## Commands
 

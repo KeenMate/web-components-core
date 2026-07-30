@@ -12,6 +12,14 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    },
+    "./cem": {
+      "types": "./dist/cem/index.d.ts",
+      "import": "./dist/cem/index.js"
     }
   },
   "files": [
