@@ -16,7 +16,8 @@
   },
   "files": [
     "dist",
-    "SPEC.md"
+    "SPEC.md",
+    "docs"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

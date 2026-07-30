@@ -200,6 +200,9 @@ extensions on relative imports (moduleResolution `Bundler`) and
 
 ## Learn more
 
+- **[`docs/reactivity-and-batching.md`](docs/reactivity-and-batching.md)** — how
+  the pipeline coalesces bursts, `reinit()` vs `update()`, how many times a
+  component rebuilds, and the mass-update tools (`setAttributes` / `batch`).
 - **`SPEC.md`** — full design intent, the per-component divergence this
   consolidates, and the decisions log.
 - **`CHANGELOG.md`** — what's landed.
