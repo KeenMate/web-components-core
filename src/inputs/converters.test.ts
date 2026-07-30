@@ -42,6 +42,13 @@ describe('toInt / toFloat', () => {
     expect(c.fromAttribute!('2', reader(), 'x')).toBe(0.5);
     expect(c.validate!(0.9)).toBe(true);
   });
+
+  it('range-checks the max bound', () => {
+    const c = toInt({ max: 100, default: 0 });
+    expect(c.fromAttribute!('100', reader(), 'x')).toBe(100);
+    expect(c.fromAttribute!('101', reader(), 'x')).toBe(0);
+    expect(c.validate!(101)).toBe(false);
+  });
 });
 
 describe('toText', () => {
@@ -96,6 +103,11 @@ describe('toBytes', () => {
     expect(c.fromAttribute!('512', reader(), 'x')).toBe(512);
     expect(c.fromAttribute!('nonsense', reader(), 'x')).toBe(0);
   });
+
+  it('parses fractional sizes', () => {
+    const c = toBytes({ default: 0 });
+    expect(c.fromAttribute!('1.5kb', reader(), 'x')).toBe(1536);
+  });
 });
 
 describe('toList', () => {
@@ -113,6 +125,12 @@ describe('toList', () => {
     expect(c.fromAttribute!('1,x,3', reader(), 'x')).toEqual([]);
     expect(c.validate!([1, 2])).toBe(true);
     expect(c.validate!([1, '2'])).toBe(false);
+  });
+
+  it('empty or absent → default', () => {
+    const c = toList({ default: ['x'] });
+    expect(c.fromAttribute!('', reader(), 'x')).toEqual(['x']);
+    expect(c.fromAttribute!(null, reader(), 'x')).toEqual(['x']);
   });
 });
 

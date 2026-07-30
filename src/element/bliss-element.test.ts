@@ -92,6 +92,18 @@ class ValidTableElement extends BlissElement {
   (ctor, i) => define(`table-element-${i}`, ctor as unknown as CustomElementConstructor),
 );
 
+class ReflectElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'count', attribute: 'count', converter: toInt({ default: 0 }), reflect: true },
+    { configKey: 'mode', attribute: 'mode', converter: toEnum(['a', 'b'] as const, { default: 'a' }), reflect: true },
+  ];
+  updates = 0;
+  protected override update(): void {
+    this.updates += 1;
+  }
+}
+define('reflect-element', ReflectElement as unknown as CustomElementConstructor);
+
 const tick = (): Promise<void> => new Promise((r) => queueMicrotask(() => r()));
 
 afterEach(() => {
@@ -254,6 +266,76 @@ describe('BlissElement', () => {
     expect(warn.mock.calls[0]![0]).toContain('threw computing its default');
     expect((el as unknown as { bad: unknown }).bad).toBeUndefined(); // fell back to (absent) default
     warn.mockRestore();
+  });
+});
+
+describe('BlissElement batching', () => {
+  it('batch() coalesces all changes into one update', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.updates.length = 0;
+
+    el.batch(() => {
+      (el as unknown as { selectionMode: string }).selectionMode = 'range';
+      (el as unknown as { placeholder: string }).placeholder = 'x';
+    });
+
+    expect(el.updates).toHaveLength(1);
+    expect(el.updates[0]).toEqual({ selectionMode: 'range', placeholder: 'x' });
+  });
+
+  it('coalesces a property + an attribute change in one microtask (last value wins)', async () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.updates.length = 0;
+
+    (el as unknown as { placeholder: string }).placeholder = 'first';
+    el.setAttribute('placeholder', 'second');
+    await tick();
+
+    expect(el.updates).toHaveLength(1);
+    expect(el.updates[0]).toEqual({ placeholder: 'second' });
+  });
+});
+
+describe('BlissElement reflection', () => {
+  it('reflects non-boolean property values to attribute strings', () => {
+    const el = new ReflectElement();
+    document.body.appendChild(el);
+    (el as unknown as { count: number }).count = 42;
+    (el as unknown as { mode: string }).mode = 'b';
+    expect(el.getAttribute('count')).toBe('42');
+    expect(el.getAttribute('mode')).toBe('b');
+  });
+
+  it('does not double-process a reflected change (no attribute feedback loop)', async () => {
+    const el = new ReflectElement();
+    document.body.appendChild(el);
+    el.updates = 0;
+
+    (el as unknown as { count: number }).count = 7;
+    await tick();
+
+    expect(el.updates).toBe(1); // exactly one — the reflected setAttribute did not re-stage
+    expect(el.getAttribute('count')).toBe('7');
+  });
+
+  it('captures a property assigned before upgrade', () => {
+    class PreUpgradeElement extends BlissElement {
+      protected static override inputs: readonly InputDef[] = [
+        { configKey: 'mode', attribute: 'mode', converter: toEnum(['a', 'b'] as const, { default: 'a' }) },
+      ];
+      read(): Readonly<Record<string, unknown>> {
+        return this.config;
+      }
+    }
+    const el = document.createElement('pre-upgrade-element');
+    (el as unknown as { mode: string }).mode = 'b'; // own property, before define/upgrade
+    define('pre-upgrade-element', PreUpgradeElement as unknown as CustomElementConstructor);
+    customElements.upgrade(el);
+
+    expect((el as unknown as { mode: string }).mode).toBe('b'); // routed through the setter
+    expect((el as PreUpgradeElement).read()).toMatchObject({ mode: 'b' });
   });
 });
 
