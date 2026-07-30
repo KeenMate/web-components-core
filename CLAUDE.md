@@ -103,6 +103,12 @@ Two load-bearing concepts. Understanding both requires reading §4–§6 of the 
 - Reactivity is declared per input (`on: 'update' | 'reinit' | 'none'`) and
   enforced centrally. No input can be added that forgets to parse, validate, or
   react.
+- The `static inputs` table is sanity-checked once per class at construction
+  (`console.warn`, never throws): duplicate `configKey`/`attribute`, or
+  `reflect: true` without an `attribute` / without `converter.toAttribute`. Watch
+  the console when authoring a table.
+- Removing an attribute is reactive: it resets that input to its `default`
+  (absent == default), consistent with construction.
 - Docs/IntelliSense are **secondary** and fed from JSDoc comments (BlissFramework
   C-CEM-13 format), *not* from the parser structure. Converter introspection
   (e.g. `toEnum(...).values`) is optional and nothing depends on it.

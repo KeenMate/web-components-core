@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   rejected property values and for converters that throw (falling back to the
   input's `default`). Deliberately bypasses the logger so it surfaces even when
   logging is disabled.
+- **Dev-time input-table validation**: once per class, `BlissElement` warns (never
+  throws) on a malformed `static inputs` table — duplicate `configKey`, duplicate
+  `attribute`, `reflect: true` without an `attribute`, or `reflect: true` without
+  `converter.toAttribute`.
 - **Logging** (`src/logging/`, SPEC §12.1): `createLoggers(namespace, categories?)`
   returns categorized `NAMESPACE:CATEGORY` loggers over `loglevel`, each with a
   color-coded `%c` prefix; `DEFAULT_CATEGORIES` (`INIT/DATA/UI`), redefinable and
@@ -57,5 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   case-insensitive); an unrecognized explicit value falls back to the mode
   default, like an absent attribute.
 - Store/satellite pattern stays dropzone-local for now (SPEC §11.4).
+- Removing an attribute resets that input to its `default` and is reactive
+  (absent == default), consistent with construction and the converter layer.
 
 [Unreleased]: https://github.com/keenmate/web-components-core/commits/prod

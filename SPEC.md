@@ -240,6 +240,11 @@ Plus a typed `dispatch(el, name, detail, {bubbles=true, composed=true})`
 and generic DOM utils (`resolveEnumAttribute`, `createMicrotaskScheduler`)
 lifted from dropzone. The store/satellite topology stays dropzone-local.
 
+The `static inputs` table is sanity-checked once per class at construction
+(warn-only, never throws): duplicate `configKey`/`attribute`, or `reflect:true`
+without an `attribute` / without `converter.toAttribute`. Removing an attribute
+is reactive — it resets that input to its `default` (absent == default).
+
 ---
 
 ## 7. Fit check — all five components

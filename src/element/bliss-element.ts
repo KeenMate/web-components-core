@@ -17,6 +17,9 @@ import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microt
 
 const Base = (typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown)) as typeof HTMLElement;
 
+/** Constructors whose input table has already been sanity-checked (once per class). */
+const VALIDATED = new WeakSet<object>();
+
 export abstract class BlissElement extends Base {
   /** The opt-in input table. Subclasses set this to enable attribute/property reactivity. */
   protected static inputs?: readonly InputDef[];
@@ -38,6 +41,7 @@ export abstract class BlissElement extends Base {
   constructor() {
     super();
     const defs = (this.constructor as typeof BlissElement).inputs ?? [];
+    this.#validateTable(defs);
     for (const def of defs) {
       this.#byConfigKey.set(def.configKey, def);
       if (def.attribute) this.#byAttribute.set(def.attribute, def);
@@ -160,6 +164,32 @@ export abstract class BlissElement extends Base {
 
   #fallback(def: InputDef): Resolved {
     return { configKey: def.configKey, field: def.field, value: def.default, on: def.on ?? 'update' };
+  }
+
+  /** Sanity-check the input table once per class; warn (never throw) on mistakes. */
+  #validateTable(defs: readonly InputDef[]): void {
+    const ctor = this.constructor as object;
+    if (VALIDATED.has(ctor)) return;
+    VALIDATED.add(ctor);
+
+    const seenKeys = new Set<string>();
+    const seenAttrs = new Set<string>();
+    for (const def of defs) {
+      if (seenKeys.has(def.configKey)) this.#warn(`invalid input table: duplicate configKey "${def.configKey}"`);
+      seenKeys.add(def.configKey);
+
+      if (def.attribute) {
+        if (seenAttrs.has(def.attribute)) this.#warn(`invalid input table: duplicate attribute "${def.attribute}"`);
+        seenAttrs.add(def.attribute);
+      }
+
+      if (def.reflect && !def.attribute) {
+        this.#warn(`invalid input table: "${def.configKey}" has reflect:true but no attribute to reflect to`);
+      }
+      if (def.reflect && !def.converter?.toAttribute) {
+        this.#warn(`invalid input table: "${def.configKey}" has reflect:true but its converter has no toAttribute`);
+      }
+    }
   }
 
   /**

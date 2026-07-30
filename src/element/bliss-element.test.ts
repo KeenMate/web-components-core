@@ -59,6 +59,39 @@ class ThrowingElement extends BlissElement {
 }
 define('throwing-element', ThrowingElement as unknown as CustomElementConstructor);
 
+// Each malformed table is used by exactly one test — validation runs once per class.
+class DupKeyElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'a', attribute: 'a', converter: toText() },
+    { configKey: 'a', attribute: 'b', converter: toText() },
+  ];
+}
+class DupAttrElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'a', attribute: 'x', converter: toText() },
+    { configKey: 'b', attribute: 'x', converter: toText() },
+  ];
+}
+class ReflectNoAttrElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'a', converter: toText(), reflect: true },
+  ];
+}
+class ReflectNoToAttrElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'a', attribute: 'a', converter: toCustom((raw) => raw), reflect: true },
+  ];
+}
+class ValidTableElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'a', attribute: 'a', converter: toText() },
+    { configKey: 'b', attribute: 'b', converter: toBool('presence'), reflect: true },
+  ];
+}
+[DupKeyElement, DupAttrElement, ReflectNoAttrElement, ReflectNoToAttrElement, ValidTableElement].forEach(
+  (ctor, i) => define(`table-element-${i}`, ctor as unknown as CustomElementConstructor),
+);
+
 const tick = (): Promise<void> => new Promise((r) => queueMicrotask(() => r()));
 
 afterEach(() => {
@@ -282,6 +315,53 @@ describe('BlissElement lifecycle (build-once + activate/deactivate)', () => {
 
     expect(el.events).toEqual(['disconnect', 'reinit', 'connect']);
     expect(el.reinits).toBe(1);
+  });
+});
+
+describe('BlissElement table validation (warn-only, once per class)', () => {
+  const tableWarnings = (warn: ReturnType<typeof vi.spyOn>): string[] =>
+    warn.mock.calls.map((c) => String(c[0])).filter((m) => m.includes('invalid input table'));
+
+  it('warns on duplicate configKey', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new DupKeyElement();
+    expect(tableWarnings(warn).some((m) => m.includes('duplicate configKey "a"'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('warns on duplicate attribute', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new DupAttrElement();
+    expect(tableWarnings(warn).some((m) => m.includes('duplicate attribute "x"'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('warns on reflect:true without an attribute', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new ReflectNoAttrElement();
+    expect(tableWarnings(warn).some((m) => m.includes('no attribute to reflect to'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('warns on reflect:true without converter.toAttribute', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new ReflectNoToAttrElement();
+    expect(tableWarnings(warn).some((m) => m.includes('has no toAttribute'))).toBe(true);
+    warn.mockRestore();
+  });
+
+  it('does not warn on a valid table', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new ValidTableElement();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('validates a class only once, not per instance', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    new DupKeyElement(); // already validated in the first test — no repeat warning
+    expect(tableWarnings(warn)).toHaveLength(0);
+    warn.mockRestore();
   });
 });
 
