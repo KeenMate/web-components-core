@@ -21,6 +21,8 @@ export type { Resolved } from './inputs/apply.js';
 export { BlissElement } from './element/bliss-element.js';
 export { dispatch } from './element/dispatch.js';
 export type { DispatchOptions } from './element/dispatch.js';
+export { defaultEventProperty, normalizeEventDefs } from './element/events.js';
+export type { EventDef, EventMap, NormalizedEventDef } from './element/events.js';
 export { define } from './element/define.js';
 
 // Global registration (window.components) + live-instance registry (SPEC §12.3)

@@ -55,6 +55,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   — the Ctrl-Alt-C overlay case. New `LoggerBundle.forInstance(id, getOverride)`
   factory and `InstanceLogger` type; components should prefer `this.log.<CAT>`
   over the shared type-level loggers.
+- **Callbacks & events model** (`src/element/`, SPEC §12.5): one unified
+  primitive for each of the two kinds the naming convention separates. **Events**
+  — a `static events` table (bare name or `EventDef`), a typed `emit(name,
+  detail)` (checked against `BlissElement<TEvents>`'s event map, per-event
+  bubbles/composed overrides), and a managed `on<Name>` handler property
+  (default `on` + PascalCase) that (de)registers a real listener so
+  `el.onSelect = e => e.detail.option` equals `addEventListener('select', …)`
+  and receives the `CustomEvent`; plus a typed `on(name, handler)` returning an
+  unsubscribe. **`*Callback` hooks** — `runHook(key, ctx, { whenUnset, onError? })`
+  owns the plumbing (unset→neutral, single-ctx arg, `Promise.resolve`
+  normalization, rethrow-on-error unless `onError` supplied); the discriminated
+  result contract stays per-component. Dev-time lint (warn-only) for duplicate /
+  non-kebab event names and `on<Name>`↔input collisions. Event-name string
+  standardization across components is deferred to each component's next major.
 - **Logging** (`src/logging/`, SPEC §12.1): `createLoggers(namespace, categories?)`
   returns categorized `NAMESPACE:CATEGORY` loggers over `loglevel`, each with a
   color-coded `%c` prefix; `DEFAULT_CATEGORIES` (`INIT/DATA/UI`), redefinable and

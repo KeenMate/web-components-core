@@ -495,8 +495,8 @@ auto-registered while the rest did not. Core consolidates it:
   base find its bundle by `localName`.
 
 ### 12.4 Other candidates (later modules)
-- **Typed event dispatch** — already in v1 (`dispatch()`); components'
-  event-name constants could standardize.
+- **Callbacks & events model** — IMPLEMENTED, see §12.5 (`static events` +
+  `emit()` + managed `on<Name>` properties, and `runHook()` for `*Callback`s).
 - **Theming / CSS cascade-layer helpers** — the `@layer` + `?inline`
   main.css import pattern (largely governed by the CSS guidelines; may
   not need runtime code).
@@ -506,3 +506,57 @@ auto-registered while the rest did not. Core consolidates it:
 - **Testing utilities** — shared Playwright/vitest fixtures (SSR stub,
   upgrade-timing helpers, contrast checks).
 ```
+
+### 12.5 Callbacks & events — IMPLEMENTED (`src/element/`)
+
+**Status:** built. The five components hand-roll two distinct things every time,
+and both drift. The naming convention already separates them, and core now gives
+each ONE unified primitive:
+
+- **`*Callback` suffix = a hook that shapes behavior/state.** Interceptors
+  (`beforeDateSelectCallback`), providers (`getDateMetadataCallback`), renderers
+  (`renderDayCallback`). Its **return value matters** (veto / adjust / supply)
+  and it may be async.
+- **Events = outward, fire-and-forget notifications.** No `Callback` suffix
+  (`select`, `change`, `date-select`). The `on<Name>` property is a listener
+  alias, not a callback — return value ignored.
+
+**Events — `static events` + `emit()` + managed `on<Name>` properties.** A
+component declares its notifications in a `static events` table (a bare name, or
+an `EventDef` for dispatch/property overrides). `emit(name, detail)` is a typed
+dispatch (name + detail checked against the component's `BlissElement<TEvents>`
+event map, per-event `bubbles`/`composed` overrides applied). The paired
+`on<Name>` property (default `on` + PascalCase, e.g. `onDateSelect`) is installed
+as a **managed listener**: assigning it does `removeEventListener(old)` +
+`addEventListener(new)`, so `el.onSelect = e => e.detail.option` is *identical*
+to `addEventListener('select', …)` and receives the same `CustomEvent`. This is
+the deliberate contract choice (SPEC decision): the handler receives the
+**event**, not a bare positional arg — matching the platform's own `onclick`
+convention and collapsing the property path and `addEventListener` into ONE
+delivery path, so `emit` never calls the property separately. A typed
+`on(name, handler)` method (returns an unsubscribe) complements the property.
+The old per-component pattern — `onSelect: (o) => { this._onSelect?.(o);
+this.dispatchEvent(new CustomEvent('select', …)) }` — collapses to
+`this.emit('select', { option })`.
+
+**`*Callback` — `runHook(key, ctx, { whenUnset, onError? })`.** Core owns only
+the drift-prone plumbing: unset → `whenUnset`; the callback is invoked with a
+single `ctx` argument and its result is normalized through `Promise.resolve` (so
+sync OR async both work); a throw routes to `onError` if given, else **re-throws**
+(no silent swallow — a component that forgets `onError` fails loudly). The
+**result contract stays the component's** — core cannot own the discriminant,
+because the two daterangepicker hooks already disagree on it
+(`BeforeSelectResult.action: accept|adjust|restore|clear` vs
+`BeforeMonthChangeResult.action: accept|block`), exactly as core can't own event
+names. So `callBeforeSelectCallback`'s guard + `await Promise.resolve` + try/catch
+collapse into the call, while its `switch (result.action)` interpretation and
+loader/`isValidating` side-effects stay in the component.
+
+**Dev-time lint** (warn-only, once per class, with the input-table checks):
+duplicate event name; a name that isn't lowercase kebab/bare (the `date-select`
+convention); an `on<Name>` property that collides with an input `configKey`.
+
+**Deferred to each component's next major:** the actual string renames the
+convention implies (`rowdelete` → `row-delete`, treeview's tense drift). Core
+accepts every existing name verbatim; standardizing the vocabulary is a breaking
+change and rides the same major bump that adopts core.

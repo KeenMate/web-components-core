@@ -17,6 +17,13 @@ import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microt
 import { trackInstance, untrackInstance } from '../global/instances.js';
 import { getLoggerBundle } from '../logging/logger-registry.js';
 import type { InstanceLogger, LogLevelDesc } from '../logging/create-loggers.js';
+import { dispatch, type DispatchOptions } from './dispatch.js';
+import {
+  normalizeEventDefs,
+  type EventDef,
+  type EventMap,
+  type NormalizedEventDef,
+} from './events.js';
 
 const Base = (typeof HTMLElement !== 'undefined' ? HTMLElement : (class {} as unknown)) as typeof HTMLElement;
 
@@ -33,9 +40,16 @@ const NOOP_LOGGERS: Record<string, InstanceLogger> = new Proxy(
   { get: () => NOOP_LOGGER },
 ) as Record<string, InstanceLogger>;
 
-export abstract class BlissElement extends Base {
+export abstract class BlissElement<TEvents extends EventMap = EventMap> extends Base {
   /** The opt-in input table. Subclasses set this to enable attribute/property reactivity. */
   protected static inputs?: readonly InputDef[];
+
+  /**
+   * The opt-in event table (SPEC §12.5). Each entry (a bare name, or an
+   * {@link EventDef} for overrides) declares an outward notification that
+   * {@link emit} can fire and installs a managed `on<Name>` handler property.
+   */
+  protected static events?: readonly (string | EventDef)[];
 
   static get observedAttributes(): string[] {
     return (this.inputs ?? []).filter((d) => d.attribute).map((d) => d.attribute!);
@@ -44,6 +58,9 @@ export abstract class BlissElement extends Base {
   readonly #config: Record<string, unknown> = {};
   readonly #byConfigKey = new Map<string, InputDef>();
   readonly #byAttribute = new Map<string, InputDef>();
+  readonly #eventsByName = new Map<string, NormalizedEventDef>();
+  /** Live handler currently bound via each managed `on<Name>` property, keyed by event name. */
+  readonly #eventHandlers = new Map<string, EventListener>();
   readonly #scheduler: MicrotaskScheduler = createMicrotaskScheduler();
   readonly #boundFlush = (): void => this.#flush();
   #pending: Record<string, unknown> | null = null;
@@ -56,14 +73,18 @@ export abstract class BlissElement extends Base {
 
   constructor() {
     super();
-    const defs = (this.constructor as typeof BlissElement).inputs ?? [];
-    this.#validateTable(defs);
+    const ctor = this.constructor as typeof BlissElement;
+    const defs = ctor.inputs ?? [];
+    const events = normalizeEventDefs(ctor.events);
+    this.#validateOnce(defs, events);
     for (const def of defs) {
       this.#byConfigKey.set(def.configKey, def);
       if (def.attribute) this.#byAttribute.set(def.attribute, def);
     }
+    for (const ev of events) this.#eventsByName.set(ev.name, ev);
     this.#seedDefaults(defs);
     this.#installAccessors(defs);
+    this.#installEventAccessors(events);
   }
 
   // ── lifecycle ──────────────────────────────────────────────────────────
@@ -202,6 +223,70 @@ export abstract class BlissElement extends Base {
     /* opt-in */
   }
 
+  // ── events & callbacks (SPEC §12.5) ───────────────────────────────────────
+
+  /**
+   * Fire an outward notification: dispatch a typed `CustomEvent`. `name` and
+   * `detail` are checked against the component's event map (`static events`),
+   * and per-event dispatch overrides from the table are applied (defaulting to
+   * the {@link dispatch} defaults: bubbles + composed). Returns `false` when a
+   * cancelable event was `preventDefault()`-ed. The paired `on<Name>` property
+   * (if declared) is a real listener, so it fires through the normal dispatch —
+   * `emit` does not call it separately.
+   */
+  protected emit<K extends keyof TEvents & string>(
+    name: K,
+    detail?: TEvents[K],
+    opts?: DispatchOptions,
+  ): boolean {
+    const def = this.#eventsByName.get(name);
+    return dispatch(this, name, detail, {
+      bubbles: opts?.bubbles ?? def?.bubbles,
+      composed: opts?.composed ?? def?.composed,
+      cancelable: opts?.cancelable ?? def?.cancelable,
+    });
+  }
+
+  /**
+   * Typed `addEventListener` for a declared event: the handler receives a
+   * `CustomEvent<detail>`. Returns an unsubscribe function. Complements the
+   * managed `on<Name>` property with the same event object.
+   */
+  on<K extends keyof TEvents & string>(
+    name: K,
+    handler: (event: CustomEvent<TEvents[K]>) => void,
+    options?: AddEventListenerOptions,
+  ): () => void {
+    const listener = handler as EventListener;
+    this.addEventListener(name, listener, options);
+    return () => this.removeEventListener(name, listener, options);
+  }
+
+  /**
+   * Invoke a `*Callback` input through the one unified protocol (SPEC §12.5):
+   * unset → `opts.whenUnset`; the callback is called with a single `ctx`
+   * argument and its result is normalized through `Promise.resolve` (so sync OR
+   * async callbacks both work); a throw routes to `opts.onError` if given, else
+   * re-throws (no silent swallow). The RESULT contract — the discriminated
+   * `action`, adjustments, etc. — is the component's; core owns only the
+   * plumbing. Correctness that used to drift across per-component hook wrappers
+   * lives here once.
+   */
+  protected async runHook<Ctx, R>(
+    callbackKey: string,
+    ctx: Ctx,
+    opts: { whenUnset: R; onError?: (error: unknown) => R },
+  ): Promise<R> {
+    const fn = this.#config[callbackKey] as ((ctx: Ctx) => R | Promise<R>) | undefined;
+    if (typeof fn !== 'function') return opts.whenUnset;
+    try {
+      return await Promise.resolve(fn(ctx));
+    } catch (error) {
+      if (opts.onError) return opts.onError(error);
+      throw error;
+    }
+  }
+
   // ── internals ─────────────────────────────────────────────────────────────
 
   #seedDefaults(defs: readonly InputDef[]): void {
@@ -224,8 +309,8 @@ export abstract class BlissElement extends Base {
     return { configKey: def.configKey, field: def.field, value: def.default, on: def.on ?? 'update' };
   }
 
-  /** Sanity-check the input table once per class; warn (never throw) on mistakes. */
-  #validateTable(defs: readonly InputDef[]): void {
+  /** Sanity-check the input + event tables once per class; warn (never throw) on mistakes. */
+  #validateOnce(defs: readonly InputDef[], events: readonly NormalizedEventDef[]): void {
     const ctor = this.constructor as object;
     if (VALIDATED.has(ctor)) return;
     VALIDATED.add(ctor);
@@ -246,6 +331,21 @@ export abstract class BlissElement extends Base {
       }
       if (def.reflect && !def.converter?.toAttribute) {
         this.#warn(`invalid input table: "${def.configKey}" has reflect:true but its converter has no toAttribute`);
+      }
+    }
+
+    const seenEvents = new Set<string>();
+    for (const ev of events) {
+      if (seenEvents.has(ev.name)) this.#warn(`invalid event table: duplicate event "${ev.name}"`);
+      seenEvents.add(ev.name);
+
+      // Convention: event names are lowercase kebab/bare (no `Callback` suffix).
+      if (!/^[a-z][a-z0-9-]*$/.test(ev.name)) {
+        this.#warn(`invalid event table: event "${ev.name}" should be lowercase kebab-case (e.g. "date-select")`);
+      }
+      // The managed `on<Name>` property must not collide with an input property.
+      if (ev.property && seenKeys.has(ev.property)) {
+        this.#warn(`invalid event table: event "${ev.name}" property "${ev.property}" collides with an input configKey`);
       }
     }
   }
@@ -273,6 +373,40 @@ export abstract class BlissElement extends Base {
         set: (value: unknown) => this.#setFromProperty(def, value),
       });
       if (had) (this as Record<string, unknown>)[key] = pre;
+    }
+  }
+
+  /**
+   * Install a managed `on<Name>` handler property per event. Assigning it
+   * (de)registers a real listener for the event, so the property behaves like
+   * `addEventListener(name, …)` and its handler receives the `CustomEvent`.
+   */
+  #installEventAccessors(events: readonly NormalizedEventDef[]): void {
+    for (const ev of events) {
+      const prop = ev.property;
+      if (!prop) continue;
+      const eventName = ev.name;
+      // Preserve a handler assigned before upgrade, then route it through the setter.
+      const had = Object.prototype.hasOwnProperty.call(this, prop);
+      const pre = had ? (this as Record<string, unknown>)[prop] : undefined;
+      if (had) delete (this as Record<string, unknown>)[prop];
+      Object.defineProperty(this, prop, {
+        configurable: true,
+        enumerable: true,
+        get: () => this.#eventHandlers.get(eventName) ?? null,
+        set: (handler: unknown) => {
+          const prev = this.#eventHandlers.get(eventName);
+          if (prev) this.removeEventListener(eventName, prev);
+          if (typeof handler === 'function') {
+            const listener = handler as EventListener;
+            this.#eventHandlers.set(eventName, listener);
+            this.addEventListener(eventName, listener);
+          } else {
+            this.#eventHandlers.delete(eventName);
+          }
+        },
+      });
+      if (had) (this as Record<string, unknown>)[prop] = pre;
     }
   }
 
