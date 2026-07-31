@@ -73,6 +73,32 @@ describe('anchor', () => {
     expect(vi.mocked(fui.computePosition)).toHaveBeenCalledOnce();
   });
 
+  it('runs beforeCompute before each computePosition', async () => {
+    const order: string[] = [];
+    vi.mocked(fui.computePosition).mockImplementationOnce(() => {
+      order.push('compute');
+      return Promise.resolve({ x: 1, y: 2, placement: 'bottom-start', strategy: 'fixed', middlewareData: {} }) as never;
+    });
+    const beforeCompute = vi.fn(() => order.push('before'));
+    anchor(document.createElement('div'), document.createElement('button'), { beforeCompute });
+    await Promise.resolve();
+    expect(beforeCompute).toHaveBeenCalled();
+    expect(order).toEqual(['before', 'compute']);
+  });
+
+  it("lockPlacement:'freeze' pins the first resolved placement and drops flip after", async () => {
+    const handle = anchor(document.createElement('div'), document.createElement('button'), { lockPlacement: 'freeze' });
+    await Promise.resolve(); // first compute resolves → freeze
+    const first = vi.mocked(fui.computePosition).mock.calls[0]![2]!;
+    expect((first.middleware as { name: string }[]).map((m) => m.name)).toContain('flip');
+
+    handle.update(); // next frame uses the frozen (flip-less) middleware + pinned placement
+    await Promise.resolve();
+    const second = vi.mocked(fui.computePosition).mock.calls[1]![2]!;
+    expect((second.middleware as { name: string }[]).map((m) => m.name)).not.toContain('flip');
+    expect(second.placement).toBe('bottom-start'); // the resolved placement, now pinned
+  });
+
   it('inherits data-theme from the nearest themed ancestor (C-CS-10)', () => {
     const root = document.createElement('div');
     root.setAttribute('data-theme', 'dark');
@@ -138,6 +164,29 @@ describe('createTooltip', () => {
     const rect = ref.getBoundingClientRect();
     expect(rect.x).toBe(5);
     expect(rect.y).toBe(7);
+    tip.destroy();
+  });
+
+  it('calls onBeforeShow right before showing', () => {
+    const trigger = document.createElement('button');
+    document.body.append(trigger);
+    const onBeforeShow = vi.fn();
+    const tip = createTooltip({ trigger, content: 'hi', onBeforeShow });
+    tip.show();
+    expect(onBeforeShow).toHaveBeenCalledOnce();
+    expect(tip.isVisible).toBe(true);
+    tip.destroy();
+  });
+
+  it('mounts into a ShadowRoot container', () => {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const shadow = host.attachShadow({ mode: 'open' });
+    const trigger = document.createElement('button');
+    shadow.append(trigger);
+    const tip = createTooltip({ trigger, content: 'hi', container: shadow });
+    tip.show();
+    expect(shadow.contains(tip.element)).toBe(true);
     tip.destroy();
   });
 

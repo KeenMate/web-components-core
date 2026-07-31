@@ -119,12 +119,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   floating-element positioning module over one pinned `@floating-ui/dom` (ends
   the 1.5/1.7 version drift across the five components). `anchor()` — the
   low-level primitive (`'fixed'` default, `offset→size→flip→shift` middleware,
-  `matchWidth: 'min'|'exact'`, `lockPlacement`, `autoUpdate`, `data-theme`
-  inheritance for portaled layers per C-CS-10, and a `platform` escape hatch) —
-  plus `createTooltip()` (hover/focus, delay, `followCursor` via a
-  `VirtualElement`) and `createPopover()` (portaled dropdown/panel, width-match,
-  placement lock). Exposed as a separate subpath so `@floating-ui/dom` stays out
-  of the base import graph.
+  `matchWidth: 'min'|'exact'`, `lockPlacement` (`true` | `'freeze'`),
+  `beforeCompute` per-frame hook, `autoUpdate`, `data-theme` inheritance for
+  portaled layers per C-CS-10, and a `platform` escape hatch) — plus
+  `createTooltip()` (hover/focus, delay, `followCursor` via a `VirtualElement`,
+  `onBeforeShow`, and a `ShadowRoot` container for shadow-scoped tooltip CSS) and
+  `createPopover()` (portaled dropdown/panel, width-match, placement lock).
+  Exposed as a separate subpath so `@floating-ui/dom` stays out of the base
+  import graph.
+  - `lockPlacement: 'freeze'` flips once on the first computation, then pins the
+    resolved placement (dropdown "open where it fits, then don't jump"); `true`
+    keeps the initial placement via flip's `fallbackStrategy`.
+  - `beforeCompute` runs each frame before positioning — publish the reference's
+    measured width to a CSS var (themeable panel width) before `shift`/`size`
+    measure, or clamp min/max width.
+  - `createTooltip`'s `onBeforeShow` lets a tooltip dismiss a related one that
+    would overlap; a `ShadowRoot` container keeps tooltips in the shadow tree so
+    they inherit component tooltip styling and `--*` vars.
 - **Style injection** (`src/dom/adopt-styles.ts`, SPEC §12.8): two zero-dep
   helpers for the shadow-root CSS plumbing every component re-rolls.
   `adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (one cached

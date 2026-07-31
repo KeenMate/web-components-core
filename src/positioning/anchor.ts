@@ -28,8 +28,11 @@ function inheritTheme(source: HTMLElement, target: HTMLElement): void {
   if (theme != null) target.setAttribute('data-theme', theme);
 }
 
-/** Build the middleware stack in the canonical order: offset → size → flip → shift. */
-function buildMiddleware(opts: AnchorOptions): Middleware[] {
+/**
+ * Build the middleware stack in the canonical order: offset → size → flip → shift.
+ * `flipEnabled` lets the caller drop `flip` after freezing (`lockPlacement: 'freeze'`).
+ */
+function buildMiddleware(opts: AnchorOptions, flipEnabled: boolean): Middleware[] {
   const middleware: Middleware[] = [offsetMiddleware(opts.offset ?? 4)];
 
   if (opts.matchWidth) {
@@ -45,9 +48,10 @@ function buildMiddleware(opts: AnchorOptions): Middleware[] {
     );
   }
 
-  if (opts.flip ?? true) {
-    // lockPlacement: prefer returning to the initial placement over reordering.
-    middleware.push(flipMiddleware(opts.lockPlacement ? { fallbackStrategy: 'initialPlacement' } : {}));
+  if (flipEnabled) {
+    // lockPlacement:true — prefer returning to the initial placement over reordering.
+    // ('freeze' flips normally on the first frame, then this rebuilds without flip.)
+    middleware.push(flipMiddleware(opts.lockPlacement === true ? { fallbackStrategy: 'initialPlacement' } : {}));
   }
 
   const shift = opts.shift ?? 8;
@@ -68,7 +72,6 @@ export function anchor(
   opts: AnchorOptions = {},
 ): AnchorHandle {
   const strategy = opts.strategy ?? 'fixed';
-  const placement = opts.placement ?? 'bottom-start';
 
   if (opts.inheritThemeFrom) inheritTheme(opts.inheritThemeFrom, floating);
 
@@ -76,9 +79,16 @@ export function anchor(
   floating.style.left = '0';
   floating.style.top = '0';
 
-  const middleware = buildMiddleware(opts);
+  // `placement`/`middleware` are mutable so `lockPlacement: 'freeze'` can pin the
+  // first resolved placement and drop `flip` for every subsequent frame.
+  let placement = opts.placement ?? 'bottom-start';
+  let flipEnabled = opts.flip ?? true;
+  let middleware = buildMiddleware(opts, flipEnabled);
+  const freeze = opts.lockPlacement === 'freeze';
+  let frozen = false;
 
   const run = (): void => {
+    opts.beforeCompute?.();
     void computePosition(reference, floating, {
       placement,
       strategy,
@@ -87,6 +97,13 @@ export function anchor(
     }).then(({ x, y, placement: resolved }) => {
       floating.style.left = `${x}px`;
       floating.style.top = `${y}px`;
+      if (freeze && !frozen) {
+        // Pin the placement floating-ui just chose; stop flipping from now on.
+        frozen = true;
+        placement = resolved;
+        flipEnabled = false;
+        middleware = buildMiddleware(opts, false);
+      }
       opts.onPlaced?.(resolved);
     });
   };

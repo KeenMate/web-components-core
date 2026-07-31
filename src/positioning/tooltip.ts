@@ -18,8 +18,12 @@ export interface TooltipOptions {
   trigger: HTMLElement;
   /** Tooltip content — text or an element to append. */
   content: string | HTMLElement;
-  /** Where to mount the tooltip. Default `document.body` (portaled). */
-  container?: HTMLElement;
+  /**
+   * Where to mount the tooltip. Default `document.body` (portaled). Pass the
+   * component's `ShadowRoot` to keep the tooltip inside the shadow tree, so it
+   * inherits shadow-scoped CSS custom properties and component tooltip styles.
+   */
+  container?: HTMLElement | ShadowRoot;
   /** Preferred placement. Default `'top'`. */
   placement?: Placement;
   /** Gap from the trigger, in px. Default `8`. */
@@ -36,6 +40,12 @@ export interface TooltipOptions {
   strategy?: Strategy;
   /** Element to inherit `data-theme` from (C-CS-10). Default: the trigger. */
   inheritThemeFrom?: HTMLElement;
+  /**
+   * Called right before the tooltip becomes visible. Use it to dismiss a related
+   * tooltip that would otherwise overlap (e.g. a remove-button tooltip hiding its
+   * parent badge tooltip).
+   */
+  onBeforeShow?(): void;
 }
 
 /** Handle returned by {@link createTooltip}. */
@@ -94,6 +104,7 @@ export function createTooltip(opts: TooltipOptions): TooltipHandle {
   const show = (): void => {
     clearTimers();
     if (visible) return;
+    opts.onBeforeShow?.();
     visible = true;
     container.append(element);
     const reference = opts.followCursor ? cursorReference : opts.trigger;

@@ -27,12 +27,25 @@ export interface AnchorOptions {
   /** Match the reference's width: `'min'` (min-width), `'exact'` (width), or `false`. Default `false`. */
   matchWidth?: MatchWidth;
   /**
-   * Keep the initial placement unless it truly cannot fit (flip returns to the
-   * initial placement rather than reordering). Requires `flip`. Default `false`.
+   * Keep the placement stable instead of re-flipping every frame. Requires `flip`.
+   * - `true` — flip returns to the initial placement rather than reordering
+   *   (floating-ui `fallbackStrategy: 'initialPlacement'`).
+   * - `'freeze'` — flip once on the FIRST computation, then pin the resolved
+   *   placement and stop flipping (the "open where it fits, then don't jump as
+   *   the user scrolls" behaviour a dropdown wants).
+   *
+   * Default `false`.
    */
-  lockPlacement?: boolean;
+  lockPlacement?: boolean | 'freeze';
   /** Keep the position updated on scroll/resize via floating-ui `autoUpdate`. Default `true`. */
   autoUpdate?: boolean;
+  /**
+   * Called on every frame immediately BEFORE the position is computed. Use it to
+   * mutate the reference/floating element first — e.g. publish the reference's
+   * measured width to a CSS variable so `shift`/`size` measure the final width,
+   * or clamp min/max width. Runs inside the `autoUpdate` loop.
+   */
+  beforeCompute?(): void;
   /**
    * Copy the nearest `data-theme` from this element onto the floating element at
    * placement time — so a layer portaled out of the component subtree keeps the
