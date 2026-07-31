@@ -140,6 +140,23 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   }
 
   /**
+   * Apply any pending input writes **synchronously, now** — running the
+   * resulting `reinit()`/`update()` before this call returns. No-op when nothing
+   * is pending (or while detached, where changes are held until connect).
+   *
+   * This is the escape hatch for **imperative methods** that read or mutate live
+   * state built from inputs. Loose property assignments coalesce on a microtask
+   * (`el.options = …`), so a synchronous method called right after (e.g.
+   * `el.setSelected(…)`) would otherwise run against pre-write state. Call
+   * `this.flush()` at the top of such a method to preserve the intuitive
+   * "set property, then call method" ordering without forcing consumers to
+   * `await whenSettled()` between the two.
+   */
+  flush(): void {
+    this.#flushNow();
+  }
+
+  /**
    * Resolves once the element is **settled** — i.e. every staged input change
    * has been applied and the resulting `reinit()`/`update()` has run. If nothing
    * is pending it resolves immediately (a microtask); otherwise it resolves at

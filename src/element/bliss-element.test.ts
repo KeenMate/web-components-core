@@ -296,6 +296,30 @@ describe('BlissElement batching', () => {
     expect(el.updates).toHaveLength(1);
     expect(el.updates[0]).toEqual({ placeholder: 'second' });
   });
+
+  it('flush() applies a pending property write synchronously (imperative-method ordering)', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.updates.length = 0;
+
+    // A loose property write coalesces on a microtask...
+    (el as unknown as { placeholder: string }).placeholder = 'x';
+    expect(el.updates).toHaveLength(0);
+
+    // ...but flush() applies it right now, before the next synchronous statement.
+    el.flush();
+    expect(el.updates).toHaveLength(1);
+    expect(el.updates[0]).toEqual({ placeholder: 'x' });
+  });
+
+  it('flush() is a no-op when nothing is pending', () => {
+    const el = new TestElement();
+    document.body.appendChild(el);
+    el.updates.length = 0;
+
+    el.flush();
+    expect(el.updates).toHaveLength(0);
+  });
 });
 
 describe('BlissElement reflection', () => {

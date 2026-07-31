@@ -15,9 +15,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   attribute parse path and the property validate path from one definition.
 - **`BlissElement`** base class (`src/element/`): SSR-safe, table-driven
   `observedAttributes`, attribute + property reactivity through one pipeline,
-  coalesced batching (`setAttributes()`, `batch()`), optional attribute
-  reflection, pre-upgrade property capture, and the `reinit()` / `update(partial)`
-  subclass hooks (opt-in, no-op by default). The input table is opt-in.
+  coalesced batching (`setAttributes()`, `batch()`, `flush()`), optional
+  attribute reflection, pre-upgrade property capture, and the `reinit()` /
+  `update(partial)` subclass hooks (opt-in, no-op by default). The input table is
+  opt-in.
+- **`BlissElement.flush()`** — apply pending input writes synchronously, now
+  (running the resulting `reinit()`/`update()` before it returns). The escape
+  hatch for **imperative methods** that read or mutate live state built from
+  inputs: a loose property write coalesces on a microtask, so a synchronous
+  method called right after (e.g. `el.setSelected(…)` following `el.options = …`)
+  would otherwise run against pre-write state. Calling `this.flush()` at the top
+  of such a method preserves the "set property, then call method" ordering
+  without forcing consumers to `await whenSettled()` between the two.
 - **Element lifecycle** (build-once + activate/deactivate, Lit's model): opt-in
   `connect()` / `disconnect()` hooks fire on every connect/disconnect for live
   resources (listeners, observers, floating-ui `autoUpdate`). A DOM move

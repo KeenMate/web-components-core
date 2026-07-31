@@ -166,7 +166,11 @@ the type is inferred from the converter *call name*, so a local wrapper (e.g.
 resolves after the pending flush's `reinit()`/`update()` runs — immediately when
 nothing is pending, after the microtask for loose assignments, already-settled
 after `setAttributes()`/`batch()`, on next connect for detached changes. It's the
-deterministic read-after-write signal.
+deterministic read-after-write signal. Its synchronous sibling is `flush()` —
+applies pending writes *now* (runs `reinit()`/`update()` before returning), the
+escape hatch for **imperative methods**: call `this.flush()` at the top of a
+method that reads/mutates live state so `el.prop = x; el.method()` keeps working
+when `prop` coalesced on a microtask (no `await` in between).
 `@keenmate/web-components-core/testing` is a separate subpath of runner-agnostic
 DOM fixtures (pure DOM, **zero deps**): `mount`/`cleanup`, `mountBeforeUpgrade`
 (pre-upgrade capture), `uniqueTag`/`defineOnce`, `nextTick`/`nextFrame`, and
