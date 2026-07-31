@@ -234,7 +234,11 @@ function extractInput(
   if (!configKey) return {};
   const attribute = stringOf(ts, propOf(ts, row, 'attribute'));
   const converter = propOf(ts, row, 'converter');
-  const type = typeFromConverter(ts, converter, sf);
+  // A doc-only `type: '…'` field overrides the converter-derived type — the only
+  // way to publish a precise callback signature / generic the converter can't
+  // express (`toFunction()` is otherwise always `Function`).
+  const typeOverride = stringOf(ts, propOf(ts, row, 'type'));
+  const type = typeOverride ? { text: typeOverride } : typeFromConverter(ts, converter, sf);
   const def = defaultText(ts, row, converter, sf);
   const reflects = boolOf(ts, propOf(ts, row, 'reflect')) === true;
   const description = descriptionOf(ts, row, row, sf);

@@ -55,6 +55,15 @@ export interface InputDef<V = unknown> {
    * this is the "extra help text" only a person can write. Ignored at runtime.
    */
   description?: string;
+  /**
+   * Doc-only TYPE override for the CEM manifest (SPEC §12.4). The manifest type is
+   * normally derived from the `converter` (`toEnum`→union, `toInt`→`number`, …),
+   * but a converter can't express a precise callback signature or generic —
+   * `toFunction()` is always just `Function`. Set this to the exact TS type text
+   * (e.g. `'(node: TreeNode<T>) => boolean'`) to publish it verbatim. Ignored at
+   * runtime; it only shapes the generated docs.
+   */
+  type?: string;
   /** Doc metadata: mark this input deprecated (`true`) or with a reason string. Ignored at runtime. */
   deprecated?: boolean | string;
 }

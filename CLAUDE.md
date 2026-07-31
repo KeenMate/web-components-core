@@ -151,7 +151,14 @@ members); the optional `description`/`deprecated` fields on each `InputDef` /
 `EventDef` row (or a leading comment) give the *prose*. Those doc fields are
 ignored at runtime. Keep `static inputs`/`static events` as literals (or a
 hoisted `const … as const`) — the extractor reads AST literals, not runtime
-values.
+values. Rich prose goes in `description` as a **template literal** (multi-line
+markdown, bullet lists — preserved verbatim; the leading-comment fallback
+flattens to one line, so use the field for structured text, and no `${}`
+interpolation or the AST reader skips it). `InputDef.type` (a string) overrides
+the converter-derived manifest type — the escape hatch for precise callback
+signatures / generics that `toFunction()` (always `Function`) can't express. Note
+the type is inferred from the converter *call name*, so a local wrapper (e.g.
+`const cb = () => toFunction()`) defeats inference — use `type` there.
 
 ## Testing utilities (`src/testing/` + `whenSettled()`, SPEC §12.7 — implemented)
 

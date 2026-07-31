@@ -95,6 +95,22 @@ describe('extractBlissClasses', () => {
     expect(cls!.members[0]).toMatchObject({ name: 'height', type: { text: 'number' }, default: '10' });
   });
 
+  it('a doc-only `type` field overrides the converter-derived type', () => {
+    const [cls] = parse(`
+      class W extends BlissElement {
+        static inputs = [
+          { configKey: 'onPick', converter: toFunction(),
+            type: '(node: TreeNode<T>) => boolean' },
+          { configKey: 'render', converter: toFunction(),
+            type: '(g: string) => string | HTMLElement' },
+        ];
+      }
+    `);
+    const byKey = Object.fromEntries(cls!.members.map((m) => [m.name, m]));
+    expect(byKey.onPick!.type).toEqual({ text: '(node: TreeNode<T>) => boolean' });
+    expect(byKey.render!.type).toEqual({ text: '(g: string) => string | HTMLElement' });
+  });
+
   it('reads description from a leading comment when no description field', () => {
     const [cls] = parse(`
       class W extends BlissElement {

@@ -108,6 +108,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   injects `typescript`).
 - **`InputDef` / `EventDef` doc metadata**: optional `description` and
   `deprecated` fields, read by the CEM tooling and otherwise ignored at runtime.
+- **`InputDef.type` doc override** (SPEC §12.6): an optional string that replaces
+  the converter-derived manifest type. The converter gives the structural type
+  (`toEnum`→union, `toInt`→`number`, …), but it can't express a precise callback
+  signature or generic — every `toFunction()` is just `Function`. Set `type:
+  '(node: TreeNode<T>) => boolean'` to publish the exact TS text. Runtime-ignored,
+  docs-only; multi-line `description` strings (template literals) already carry
+  rich markdown prose verbatim.
 - **Positioning** (`@keenmate/web-components-core/positioning`, SPEC §12.2): a
   floating-element positioning module over one pinned `@floating-ui/dom` (ends
   the 1.5/1.7 version drift across the five components). `anchor()` — the
