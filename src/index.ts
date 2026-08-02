@@ -44,6 +44,8 @@ export { createMicrotaskScheduler } from './dom/microtask-scheduler.js';
 export type { MicrotaskScheduler } from './dom/microtask-scheduler.js';
 export { adoptStyles, createStyleSlot } from './dom/adopt-styles.js';
 export type { StyleSlot, StyleSlotOptions } from './dom/adopt-styles.js';
+export { extractConsumedCssVars, declaredCssVars, suggestCssVars, lintCssVars } from './dom/css-var-lint.js';
+export type { CssVarFinding } from './dom/css-var-lint.js';
 
 // Logging (SPEC §12.1)
 export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';
