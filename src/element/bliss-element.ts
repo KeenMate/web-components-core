@@ -67,6 +67,16 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   #pendingReinit = false;
   #settleResolvers: Array<() => void> = [];
   #connectedOnce = false;
+  /**
+   * configKeys that carried a value assigned BEFORE the element was upgraded
+   * (`el.foo = …` before its class was defined). The browser fires the initial
+   * `attributeChangedCallback`s AFTER the constructor, so without this an initial
+   * attribute would clobber that lifted property. We let the pre-upgrade property
+   * win over the *initial* attribute (the conventional lazy-property-upgrade
+   * guarantee); post-connect attribute changes react normally. Cleared on first
+   * connect.
+   */
+  #preUpgradeKeys: Set<string> | null = null;
   #reflecting = false;
   #logId?: string;
   #logLevel?: LogLevelDesc;
@@ -94,6 +104,9 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
     if (this.#reflecting) return;
     const def = this.#byAttribute.get(name);
     if (!def) return;
+    // A property assigned before upgrade wins over the initial attribute the
+    // browser replays right after the constructor (see #preUpgradeKeys).
+    if (!this.#connectedOnce && this.#preUpgradeKeys?.has(def.configKey)) return;
     let resolved: Resolved;
     try {
       resolved = resolveFromAttribute(def, raw, this as unknown as AttrReader);
@@ -110,6 +123,9 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
     trackInstance(this.localName, this);
     if (!this.#connectedOnce) {
       this.#connectedOnce = true;
+      // The pre-upgrade window is over; the initial-attribute guard is no longer
+      // needed and later setAttribute()s react normally.
+      this.#preUpgradeKeys = null;
       // First connect is always a full build — there is nothing to patch yet.
       this.#pendingReinit = true;
     }
@@ -410,7 +426,11 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
         get: () => this.#config[key],
         set: (value: unknown) => this.#setFromProperty(def, value),
       });
-      if (had) (this as Record<string, unknown>)[key] = pre;
+      if (had) {
+        // Remember it so the initial attribute can't clobber it (see attributeChangedCallback).
+        (this.#preUpgradeKeys ??= new Set()).add(key);
+        (this as Record<string, unknown>)[key] = pre;
+      }
     }
   }
 

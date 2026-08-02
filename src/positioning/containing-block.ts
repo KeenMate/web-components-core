@@ -44,7 +44,12 @@ function establishesFixedContainingBlock(cs: CSSStyleDeclaration): boolean {
  * boundaries so it sees the host's light-DOM ancestors too.
  */
 export function getFixedPositionOffsetParent(el: Element): Element | Window {
-  let node: Node | null = el;
+  // Start at the PARENT — an element is never its own containing block. Without
+  // this, an `el` that itself establishes a fixed containing block (e.g. a badge
+  // cell with `transform: scale(...)` on hover) would be returned as its own
+  // offset parent, and Floating UI would compute element-relative coordinates
+  // that render off-screen once applied as `position: fixed`.
+  let node: Node | null = ascend(el);
   while (node) {
     if (node === document.body || node === document.documentElement) break;
     if (node instanceof Element && establishesFixedContainingBlock(getComputedStyle(node))) return node;

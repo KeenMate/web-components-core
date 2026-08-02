@@ -222,6 +222,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`getFixedPositionOffsetParent` no longer returns the element itself.** The
+  walk started at the element, so an `el` that itself establishes a fixed
+  containing block (e.g. a badge cell with `transform: scale(...)` on hover) was
+  returned as its own offset parent — and a component passing it as Floating UI's
+  `getOffsetParent` then got element-relative coordinates that render off-screen
+  once applied as `position: fixed`. It now starts at the parent (an element is
+  never its own containing block). Surfaced by web-daterangepicker badge tooltips.
 - **Pre-upgrade property now wins over the initial attribute (dual-path
   inputs).** A property assigned before the element was defined
   (`el.disabledDates = […]` then `customElements.define(...)`) was lifted in the

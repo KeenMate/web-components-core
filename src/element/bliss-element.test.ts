@@ -361,6 +361,32 @@ describe('BlissElement reflection', () => {
     expect((el as unknown as { mode: string }).mode).toBe('b'); // routed through the setter
     expect((el as PreUpgradeElement).read()).toMatchObject({ mode: 'b' });
   });
+
+  it('lets a pre-upgrade property win over the initial attribute, then reacts to later attribute changes', async () => {
+    class DualPathElement extends BlissElement {
+      protected static override inputs: readonly InputDef[] = [
+        { configKey: 'mode', attribute: 'mode', converter: toEnum(['a', 'b'] as const, { default: 'a' }) },
+      ];
+      read(): Readonly<Record<string, unknown>> {
+        return this.config;
+      }
+    }
+    const el = document.createElement('dualpath-element');
+    el.setAttribute('mode', 'a'); // initial attribute (would clobber without the guard)
+    (el as unknown as { mode: string }).mode = 'b'; // pre-upgrade property — should win
+    define('dualpath-element', DualPathElement as unknown as CustomElementConstructor);
+    customElements.upgrade(el);
+    document.body.appendChild(el);
+    await tick();
+
+    // Property assigned before upgrade wins over the replayed initial attribute.
+    expect((el as DualPathElement).read()).toMatchObject({ mode: 'b' });
+
+    // But a genuine attribute change after connect still reacts.
+    el.setAttribute('mode', 'a');
+    await tick();
+    expect((el as DualPathElement).read()).toMatchObject({ mode: 'a' });
+  });
 });
 
 describe('BlissElement lifecycle (build-once + activate/deactivate)', () => {

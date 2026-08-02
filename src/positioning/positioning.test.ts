@@ -16,7 +16,7 @@ vi.mock('@floating-ui/dom', () => ({
 }));
 
 import * as fui from '@floating-ui/dom';
-import { anchor, createPopover, createTooltip } from './index.js';
+import { anchor, createPopover, createTooltip, getFixedPositionOffsetParent } from './index.js';
 
 const mw = () => (vi.mocked(fui.computePosition).mock.calls[0]![2]!.middleware ?? []) as { name: string }[];
 
@@ -263,5 +263,37 @@ describe('createPopover', () => {
     pop.open();
     expect(vi.mocked(fui.flip)).not.toHaveBeenCalled();
     pop.close();
+  });
+});
+
+describe('getFixedPositionOffsetParent', () => {
+  // jsdom's getComputedStyle is unreliable for `transform`, so stub it to control
+  // exactly which element establishes a fixed-positioning containing block.
+  const stubStyles = (has: (el: Element) => boolean) =>
+    vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (el) => ({ transform: has(el as Element) ? 'scale(1.05)' : 'none', perspective: 'none', filter: 'none', willChange: '' }) as unknown as CSSStyleDeclaration,
+    );
+
+  it('never returns the element itself (an element is not its own containing block)', () => {
+    const parent = document.createElement('div');
+    const child = document.createElement('div');
+    parent.append(child);
+    document.body.append(parent);
+    // ONLY the child has a transform — it must be skipped, resolving to the viewport.
+    const spy = stubStyles((el) => el === child);
+    expect(getFixedPositionOffsetParent(child)).toBe(window);
+    spy.mockRestore();
+  });
+
+  it('returns the nearest ancestor that establishes a containing block', () => {
+    const grand = document.createElement('div');
+    const parent = document.createElement('div');
+    const child = document.createElement('div');
+    grand.append(parent);
+    parent.append(child);
+    document.body.append(grand);
+    const spy = stubStyles((el) => el === parent);
+    expect(getFixedPositionOffsetParent(child)).toBe(parent);
+    spy.mockRestore();
   });
 });
