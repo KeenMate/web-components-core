@@ -9,6 +9,13 @@
 export { anchor } from './anchor.js';
 export { createTooltip } from './tooltip.js';
 export { createPopover } from './popover.js';
+export {
+  getFixedPositionOffsetParent,
+  findContainingBlockCulprit,
+  describeContainingBlockProps,
+  detectFixedDrift,
+} from './containing-block.js';
+export type { DriftReport } from './containing-block.js';
 // Re-export floating-ui's base `platform` object so a component building a custom
 // platform for the `anchor({ platform })` escape hatch can do so WITHOUT taking a
 // second, independently-versioned `@floating-ui/dom` dependency. Core owns the one
