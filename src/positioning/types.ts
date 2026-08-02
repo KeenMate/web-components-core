@@ -6,6 +6,7 @@
  * across 1.5/1.7 in the five shipping components).
  */
 import type { Placement, Strategy, Platform, VirtualElement } from '@floating-ui/dom';
+import type { DriftReport } from './containing-block.js';
 
 export type { Placement, Strategy, Platform, VirtualElement };
 
@@ -61,6 +62,22 @@ export interface AnchorOptions {
   inheritThemeFrom?: HTMLElement;
   /** Escape hatch: a custom floating-ui platform (rarely needed — 1.8 handles shadow DOM). */
   platform?: Platform;
+  /**
+   * Narrow Floating UI's offset-parent search to the properties browsers reliably
+   * honour as a fixed-positioning containing block (`transform` / `perspective` /
+   * `filter` / `backdrop-filter` / qualifying `will-change`) — ignoring `contain`
+   * and `container-type`, which the spec says create a CB but browsers do NOT
+   * reliably honour for `position: fixed`, especially across shadow DOM. The
+   * offset parent is resolved from the FLOATING element (never the reference — the
+   * reference can itself be a CB, e.g. a badge cell with `transform` on hover, and
+   * a portaled panel has a different CB than its reference).
+   *
+   * Sugar for building `{ ...floatingUiPlatform, getOffsetParent: () =>
+   * getFixedPositionOffsetParent(floating) }` yourself and passing it as
+   * {@link platform}. Ignored when an explicit `platform` is given (yours wins).
+   * Pairs with {@link onDrift}. Default `false`.
+   */
+  fixedContainingBlock?: boolean;
   /** Extra viewport-edge padding (px) before `flip` switches sides. Default `0`. */
   flipPadding?: number;
   /**
@@ -82,6 +99,18 @@ export interface AnchorOptions {
   onPlaced?(placement: Placement): void;
   /** Called after each placement with the computed viewport coordinates + placement. */
   onComputed?(data: { x: number; y: number; placement: Placement }): void;
+  /**
+   * Called after a placement ONLY when the panel drifted from where it was
+   * positioned — i.e. an ancestor establishes a fixed containing block the
+   * heuristic doesn't recognise (typically `contain` / `container-type`). Not
+   * called when the panel is on target. Core runs a {@link detectFixedDrift}
+   * measurement each frame against the floating element's fixed-CB offset parent,
+   * so it fires whenever drift persists — guard against repeated warnings on your
+   * side (e.g. a once-per-instance flag). Intended to pair with
+   * {@link fixedContainingBlock}; needs a real-element reference (skipped for a
+   * virtual/cursor reference). The report carries the drift + likely CSS culprit.
+   */
+  onDrift?(report: DriftReport): void;
 }
 
 /** The teardown handle returned by {@link anchor}. */

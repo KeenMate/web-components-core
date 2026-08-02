@@ -175,6 +175,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `describeContainingBlockProps`. Generalizes the diagnostic web-multiselect had
   hand-rolled so every portaled component can warn about the same CSS gotcha; the
   branded message + once-guard stay with the consumer.
+- **`anchor()` first-class `fixedContainingBlock` + `onDrift`** — sugar that
+  retires the identical custom-platform + drift-check boilerplate both
+  web-multiselect and web-daterangepicker hand-built. `fixedContainingBlock: true`
+  makes core build `{ ...platform, getOffsetParent: () =>
+  getFixedPositionOffsetParent(floating) }` internally — always resolving the
+  offset parent from the **floating** element (never the reference, which can
+  itself be a fixed CB, e.g. a badge cell with `transform` on hover, and whose
+  containing block differs from a portaled panel's). An explicit `platform` still
+  wins. `onDrift(report)` runs `detectFixedDrift` against that same frame each
+  placement and fires only when the panel actually drifted, handing the component
+  a `DriftReport` to brand its own warning — no more scraping the resolved offset
+  parent out of the platform closure. Both components now anchor with
+  `{ fixedContainingBlock: true, onDrift }` and their local platform/drift plumbing
+  is deleted.
 - **Style injection** (`src/dom/adopt-styles.ts`, SPEC §12.8): two zero-dep
   helpers for the shadow-root CSS plumbing every component re-rolls.
   `adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (one cached

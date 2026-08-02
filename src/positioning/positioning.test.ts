@@ -14,6 +14,7 @@ vi.mock('@floating-ui/dom', () => ({
   shift: vi.fn((options: unknown) => ({ name: 'shift', options })),
   size: vi.fn((options: unknown) => ({ name: 'size', options })),
   arrow: vi.fn((options: unknown) => ({ name: 'arrow', options })),
+  platform: { __base: true },
 }));
 
 import * as fui from '@floating-ui/dom';
@@ -144,6 +145,63 @@ describe('anchor', () => {
 
     anchor(floating, reference, { inheritThemeFrom: reference });
     expect(floating.getAttribute('data-theme')).toBe('dark');
+  });
+
+  it('fixedContainingBlock resolves the offset parent from the FLOATING element', () => {
+    const floatingCB = document.createElement('div'); // a transformed ancestor of the floating panel
+    const floating = document.createElement('div');
+    floatingCB.append(floating);
+    const reference = document.createElement('button'); // has NO transformed ancestor
+    document.body.append(floatingCB, reference);
+    // Only the floating's ancestor establishes a fixed CB; the reference's chain is clean.
+    const spy = vi.spyOn(window, 'getComputedStyle').mockImplementation(
+      (el) =>
+        ({ transform: el === floatingCB ? 'scale(1.05)' : 'none', perspective: 'none', filter: 'none', willChange: '' }) as unknown as CSSStyleDeclaration,
+    );
+
+    anchor(floating, reference, { fixedContainingBlock: true });
+    const plat = vi.mocked(fui.computePosition).mock.calls[0]![2]!.platform as unknown as { getOffsetParent: () => unknown };
+    // Resolves from `floating` (→ floatingCB), NOT from `reference` (which would give window).
+    expect(plat.getOffsetParent()).toBe(floatingCB);
+    spy.mockRestore();
+  });
+
+  it('an explicit platform wins over fixedContainingBlock', () => {
+    const platform = { getOffsetParent: vi.fn() } as unknown as import('./types.js').Platform;
+    anchor(document.createElement('div'), document.createElement('button'), { platform, fixedContainingBlock: true });
+    expect(vi.mocked(fui.computePosition).mock.calls[0]![2]!.platform).toBe(platform);
+  });
+
+  it('onDrift reports when the panel lands away from where it was positioned', async () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    document.body.append(floating, reference);
+    // computePosition (mocked) writes x:10/y:20, but the panel actually renders at 100/100.
+    floating.getBoundingClientRect = () =>
+      ({ x: 100, y: 100, top: 100, left: 100, right: 100, bottom: 100, width: 0, height: 0, toJSON() {} }) as DOMRect;
+    const onDrift = vi.fn();
+
+    anchor(floating, reference, { onDrift });
+    await Promise.resolve();
+
+    expect(onDrift).toHaveBeenCalledOnce();
+    const report = onDrift.mock.calls[0]![0] as { driftX: number; driftY: number };
+    expect(report.driftX).toBeCloseTo(90);
+    expect(report.driftY).toBeCloseTo(80);
+  });
+
+  it('onDrift does not fire when the panel is on target', async () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    document.body.append(floating, reference);
+    floating.getBoundingClientRect = () =>
+      ({ x: 10, y: 20, top: 20, left: 10, right: 10, bottom: 20, width: 0, height: 0, toJSON() {} }) as DOMRect;
+    const onDrift = vi.fn();
+
+    anchor(floating, reference, { onDrift });
+    await Promise.resolve();
+
+    expect(onDrift).not.toHaveBeenCalled();
   });
 });
 

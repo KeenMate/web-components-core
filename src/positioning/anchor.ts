@@ -14,10 +14,13 @@ import {
   computePosition,
   flip as flipMiddleware,
   offset as offsetMiddleware,
+  platform as floatingUiPlatform,
   shift as shiftMiddleware,
   size as sizeMiddleware,
   type Middleware,
+  type Platform,
 } from '@floating-ui/dom';
+import { detectFixedDrift, getFixedPositionOffsetParent } from './containing-block.js';
 import type { AnchorHandle, AnchorOptions, Placement } from './types.js';
 
 type Reference = Parameters<typeof computePosition>[0];
@@ -123,13 +126,24 @@ export function anchor(
   const freeze = opts.lockPlacement === 'freeze';
   let frozen = false;
 
+  // `fixedContainingBlock` sugar: narrow floating-ui's offset-parent search to the
+  // CB properties browsers reliably honour for `position: fixed`, resolved from the
+  // FLOATING element (not the reference — see the option doc). An explicit `platform`
+  // wins over the sugar.
+  const useFixedCB = !!opts.fixedContainingBlock && !opts.platform;
+  const effectivePlatform: Platform | undefined =
+    opts.platform ??
+    (useFixedCB
+      ? { ...floatingUiPlatform, getOffsetParent: () => getFixedPositionOffsetParent(floating) }
+      : undefined);
+
   const run = (): void => {
     opts.beforeCompute?.();
     void computePosition(reference, floating, {
       placement,
       strategy,
       middleware,
-      ...(opts.platform ? { platform: opts.platform } : {}),
+      ...(effectivePlatform ? { platform: effectivePlatform } : {}),
     }).then(({ x, y, placement: resolved, middlewareData }) => {
       floating.style.left = `${x}px`;
       floating.style.top = `${y}px`;
@@ -143,6 +157,13 @@ export function anchor(
       }
       opts.onPlaced?.(resolved);
       opts.onComputed?.({ x, y, placement: resolved });
+      if (opts.onDrift && reference instanceof Element) {
+        // Measure against the same frame floating-ui used: the fixed-CB offset parent
+        // when the sugar is on, else the viewport. Only reports when actually drifted.
+        const offsetParent = useFixedCB ? getFixedPositionOffsetParent(floating) : window;
+        const report = detectFixedDrift({ panel: floating, reference, expectedX: x, expectedY: y, offsetParent });
+        if (report) opts.onDrift(report);
+      }
     });
   };
 
