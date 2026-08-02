@@ -145,6 +145,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `createTooltip`'s `onBeforeShow` lets a tooltip dismiss a related one that
     would overlap; a `ShadowRoot` container keeps tooltips in the shadow tree so
     they inherit component tooltip styling and `--*` vars.
+  - Re-exports floating-ui's base `platform` object (alongside the `Platform`
+    type). A component building a custom platform for the `anchor({ platform })`
+    escape hatch (`{ ...platform, getOffsetParent }`) can now do so through core
+    instead of taking a second, independently-versioned `@floating-ui/dom`
+    dependency — core owns the one pinned version.
 - **Style injection** (`src/dom/adopt-styles.ts`, SPEC §12.8): two zero-dep
   helpers for the shadow-root CSS plumbing every component re-rolls.
   `adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (one cached
