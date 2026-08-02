@@ -229,4 +229,39 @@ describe('createPopover', () => {
     pop.close();
     pop.close();
   });
+
+  it('forwards beforeCompute, platform, flip/shift, and lockPlacement:freeze to anchor', async () => {
+    const reference = document.createElement('button');
+    const panel = document.createElement('div');
+    document.body.append(reference);
+    const beforeCompute = vi.fn();
+    const platform = { getOffsetParent: vi.fn() } as unknown as import('./types.js').Platform;
+
+    const pop = createPopover({
+      reference,
+      panel,
+      beforeCompute,
+      platform,
+      shift: 12,
+      lockPlacement: 'freeze',
+    });
+    pop.open();
+    await Promise.resolve();
+
+    // beforeCompute runs before positioning; the custom platform reaches computePosition.
+    expect(beforeCompute).toHaveBeenCalled();
+    expect(vi.mocked(fui.computePosition).mock.calls[0]![2]!.platform).toBe(platform);
+    // freeze flips on the first frame like a normal flip (no fallbackStrategy).
+    expect(vi.mocked(fui.flip)).toHaveBeenCalledWith({});
+    expect(vi.mocked(fui.shift)).toHaveBeenCalledWith({ padding: 12 });
+
+    pop.close();
+  });
+
+  it('disables flip when flip:false', () => {
+    const pop = createPopover({ reference: document.createElement('button'), panel: document.createElement('div'), flip: false });
+    pop.open();
+    expect(vi.mocked(fui.flip)).not.toHaveBeenCalled();
+    pop.close();
+  });
 });

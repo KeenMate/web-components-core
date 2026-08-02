@@ -7,7 +7,7 @@
  * and keeps position updated while open.
  */
 import { anchor } from './anchor.js';
-import type { AnchorHandle, MatchWidth, Placement, Strategy } from './types.js';
+import type { AnchorHandle, MatchWidth, Placement, Platform, Strategy } from './types.js';
 
 /** A DOM element or a floating-ui `VirtualElement` to anchor against. */
 type Reference = Parameters<typeof anchor>[1];
@@ -26,12 +26,30 @@ export interface PopoverOptions {
   offset?: number;
   /** Match the reference's width. Default `false`. */
   matchWidth?: MatchWidth;
-  /** Keep the initial placement unless it truly cannot fit. Default `false`. */
-  lockPlacement?: boolean;
+  /**
+   * Placement stability (see {@link AnchorOptions.lockPlacement}): `true` returns
+   * to the initial placement on overflow, `'freeze'` flips once then pins (the
+   * "open where it fits, then don't jump" dropdown behaviour). Default `false`.
+   */
+  lockPlacement?: boolean | 'freeze';
+  /** Allow flipping to the opposite side on overflow. Default `true`. */
+  flip?: boolean;
+  /** Shift padding in px to stay in view, or `false` to disable. Default `8`. */
+  shift?: number | false;
   /** Positioning strategy. Default `'fixed'`. */
   strategy?: Strategy;
+  /** Keep the position updated on scroll/resize via floating-ui `autoUpdate`. Default `true`. */
+  autoUpdate?: boolean;
   /** Element to inherit `data-theme` from (C-CS-10). Default: the reference if it is an element. */
   inheritThemeFrom?: HTMLElement;
+  /**
+   * Per-frame hook run immediately before positioning — publish the reference's
+   * measured width to a CSS var, clamp min/max width, etc. (see
+   * {@link AnchorOptions.beforeCompute}).
+   */
+  beforeCompute?(): void;
+  /** Escape hatch: a custom floating-ui platform (e.g. a narrowed shadow-DOM containing-block heuristic). */
+  platform?: Platform;
   /** Called after each placement with the resolved placement. */
   onPlaced?(placement: Placement): void;
 }
@@ -71,6 +89,11 @@ export function createPopover(opts: PopoverOptions): PopoverHandle {
         offset: opts.offset,
         matchWidth: opts.matchWidth,
         lockPlacement: opts.lockPlacement,
+        ...(opts.flip !== undefined ? { flip: opts.flip } : {}),
+        ...(opts.shift !== undefined ? { shift: opts.shift } : {}),
+        ...(opts.autoUpdate !== undefined ? { autoUpdate: opts.autoUpdate } : {}),
+        ...(opts.beforeCompute ? { beforeCompute: opts.beforeCompute } : {}),
+        ...(opts.platform ? { platform: opts.platform } : {}),
         ...(defaultTheme ? { inheritThemeFrom: defaultTheme } : {}),
         ...(opts.onPlaced ? { onPlaced: opts.onPlaced } : {}),
       });
