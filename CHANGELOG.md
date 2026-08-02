@@ -150,6 +150,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     escape hatch (`{ ...platform, getOffsetParent }`) can now do so through core
     instead of taking a second, independently-versioned `@floating-ui/dom`
     dependency — core owns the one pinned version.
+  - `createPopover` now forwards the full relevant `anchor` surface: `platform`,
+    `beforeCompute`, `flip`, `shift`, `autoUpdate`, and `lockPlacement: 'freeze'`
+    (widened from `boolean`). Previously the preset lacked these, forcing its own
+    headline consumers (the multiselect dropdown, daterangepicker calendar) down
+    to the low-level `anchor()`; the preset can now serve them directly.
+- **Fixed-positioning containing-block helpers + drift diagnostic**
+  (`src/positioning/containing-block.ts`): `getFixedPositionOffsetParent(el)` — a
+  `getOffsetParent` for `anchor`'s `platform` hatch that omits `contain` /
+  `container-type` (which browsers don't reliably honour for `position: fixed`);
+  and `detectFixedDrift({ panel, reference, expectedX, expectedY, offsetParent })`
+  → `DriftReport | null`, which verifies a fixed panel landed where it was placed
+  (translating the expectation into viewport space) and, if it drifted, names the
+  likely CB-establishing ancestor + its CSS. Plus `findContainingBlockCulprit` /
+  `describeContainingBlockProps`. Generalizes the diagnostic web-multiselect had
+  hand-rolled so every portaled component can warn about the same CSS gotcha; the
+  branded message + once-guard stay with the consumer.
 - **Style injection** (`src/dom/adopt-styles.ts`, SPEC §12.8): two zero-dep
   helpers for the shadow-root CSS plumbing every component re-rolls.
   `adoptStyles(root, ...cssStrings)` adopts static shared stylesheets (one cached
@@ -160,6 +176,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   position, so re-setting replaces rather than stacks; `<style>`-based so user
   `@import` works). Free functions, not `BlissElement` methods — core stays
   render-agnostic.
+- **CSS-var lint helpers** (`src/dom/css-var-lint.ts`, SPEC §12.8 — the third leg
+  alongside `adoptStyles` / `createStyleSlot`): `extractConsumedCssVars(css,
+  prefix)`, `declaredCssVars(css, prefix)`, `suggestCssVars(name, known)`, and the
+  convenience `lintCssVars(css, { prefix, consumed })` → `CssVarFinding[]`. Catch
+  the silent-failure class where injected CSS (a `customStylesCallback`) *sets* a
+  `--prefix-*` variable the component's stylesheet never *reads* (a typo like
+  `--ms-badge-text-background` for `--ms-badge-text-bg`), with token-overlap typo
+  suggestions. Pure and bundler-agnostic on purpose — NO dev-mode gating and NO
+  `console`; the consumer decides when to run it (under its own dev flag) and how
+  to report. Generalizes the helper web-multiselect had hand-rolled for `--ms-`.
 
 ### Changed
 
@@ -196,6 +222,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **Pre-upgrade property now wins over the initial attribute (dual-path
+  inputs).** A property assigned before the element was defined
+  (`el.disabledDates = […]` then `customElements.define(...)`) was lifted in the
+  constructor, but the browser replays the initial `attributeChangedCallback`s
+  *after* the constructor — so an initial attribute (`disabled-dates="…"`) for
+  the same key clobbered the lifted property. `BlissElement` now records the
+  configKeys carrying a pre-upgrade value and skips that *initial* attribute for
+  them, restoring the conventional lazy-property-upgrade guarantee; post-connect
+  `setAttribute()`s still react normally. Surfaced by the web-daterangepicker
+  migration (its `disabledDates`/`monthNames`/`weekdayNames`/`*Member` inputs are
+  genuinely dual-path); multiselect never hit it because its rich `options` is
+  property-only.
 - **CEM: `toEnum` unions now resolve through `as const` and a shared members
   const.** The extractor only matched a bare `ArrayLiteralExpression`, so the two
   forms components actually use — `toEnum(['a','b'] as const, …)` and
