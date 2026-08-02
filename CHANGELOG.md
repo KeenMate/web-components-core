@@ -142,6 +142,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `beforeCompute` runs each frame before positioning — publish the reference's
     measured width to a CSS var (themeable panel width) before `shift`/`size`
     measure, or clamp min/max width.
+  - `anchor()` also takes `arrow` (adds floating-ui's `arrow()` middleware and
+    positions the arrow element on the resolved side each frame), `maxHeight`
+    (viewport-height-capping `size()` so a panel scrolls internally instead of
+    overflowing), `flipPadding`, `autoUpdateOptions` (forwarded to `autoUpdate`,
+    e.g. `{ elementResize: false }` to avoid a resize→reposition→re-hover loop),
+    and `onComputed({ x, y, placement })`. Together these let a component with a
+    bespoke popover/tooltip (arrow + height-cap + drift check, like
+    web-daterangepicker's calendar and day/badge tooltips) route entirely through
+    `anchor()` instead of hand-rolling `computePosition`.
   - `createTooltip`'s `onBeforeShow` lets a tooltip dismiss a related one that
     would overlap; a `ShadowRoot` container keeps tooltips in the shadow tree so
     they inherit component tooltip styling and `--*` vars.

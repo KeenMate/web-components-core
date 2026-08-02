@@ -40,6 +40,13 @@ export interface AnchorOptions {
   /** Keep the position updated on scroll/resize via floating-ui `autoUpdate`. Default `true`. */
   autoUpdate?: boolean;
   /**
+   * Options forwarded to floating-ui `autoUpdate` (e.g. `{ elementResize: false }`
+   * to stop the floating element's OWN size changes from re-triggering a
+   * reposition — the fix for a resize→reposition→re-hover loop). Ignored when
+   * `autoUpdate` is `false`.
+   */
+  autoUpdateOptions?: Parameters<typeof import('@floating-ui/dom').autoUpdate>[3];
+  /**
    * Called on every frame immediately BEFORE the position is computed. Use it to
    * mutate the reference/floating element first — e.g. publish the reference's
    * measured width to a CSS variable so `shift`/`size` measure the final width,
@@ -54,8 +61,27 @@ export interface AnchorOptions {
   inheritThemeFrom?: HTMLElement;
   /** Escape hatch: a custom floating-ui platform (rarely needed — 1.8 handles shadow DOM). */
   platform?: Platform;
+  /** Extra viewport-edge padding (px) before `flip` switches sides. Default `0`. */
+  flipPadding?: number;
+  /**
+   * Cap the floating element's height to the space available on the resolved side
+   * (floating-ui `size()`), so it scrolls internally instead of overflowing the
+   * viewport — a calendar/dropdown that should stay on-screen. `true` uses no
+   * extra inset; `{ padding }` insets from the viewport edges. The floating
+   * element needs its own inner scroll region (this only sets `max-height`).
+   */
+  maxHeight?: boolean | { padding?: number };
+  /**
+   * Render an arrow that points at the reference. Core adds floating-ui's
+   * `arrow()` middleware and, each frame, positions `element` along the resolved
+   * side (centered via its own measured size, cleared/re-set on flip). `element`
+   * must be a child of the floating element and is typically a small rotated square.
+   */
+  arrow?: { element: HTMLElement; padding?: number };
   /** Called after each placement with the resolved placement. */
   onPlaced?(placement: Placement): void;
+  /** Called after each placement with the computed viewport coordinates + placement. */
+  onComputed?(data: { x: number; y: number; placement: Placement }): void;
 }
 
 /** The teardown handle returned by {@link anchor}. */

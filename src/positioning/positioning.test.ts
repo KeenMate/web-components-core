@@ -13,6 +13,7 @@ vi.mock('@floating-ui/dom', () => ({
   flip: vi.fn((options: unknown) => ({ name: 'flip', options })),
   shift: vi.fn((options: unknown) => ({ name: 'shift', options })),
   size: vi.fn((options: unknown) => ({ name: 'size', options })),
+  arrow: vi.fn((options: unknown) => ({ name: 'arrow', options })),
 }));
 
 import * as fui from '@floating-ui/dom';
@@ -50,6 +51,40 @@ describe('anchor', () => {
     expect(mw().map((m) => m.name)).toEqual(['offset', 'flip', 'shift']);
     expect(vi.mocked(fui.offset)).toHaveBeenCalledWith(4);
     expect(vi.mocked(fui.shift)).toHaveBeenCalledWith({ padding: 8 });
+  });
+
+  it('reports computed coordinates via onComputed', async () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    document.body.append(floating, reference);
+    const onComputed = vi.fn();
+    anchor(floating, reference, { onComputed });
+    await Promise.resolve();
+    expect(onComputed).toHaveBeenCalledWith({ x: 10, y: 20, placement: 'bottom-start' });
+  });
+
+  it('appends a size() height-cap for maxHeight and an arrow() last', () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    const arrowEl = document.createElement('div');
+    anchor(floating, reference, { maxHeight: { padding: 8 }, arrow: { element: arrowEl } });
+    // offset → flip → shift → size(maxHeight) → arrow
+    expect(mw().map((m) => m.name)).toEqual(['offset', 'flip', 'shift', 'size', 'arrow']);
+    expect(vi.mocked(fui.arrow)).toHaveBeenCalledWith({ element: arrowEl, padding: undefined });
+  });
+
+  it('passes flipPadding through to flip()', () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    anchor(floating, reference, { flipPadding: 8 });
+    expect(vi.mocked(fui.flip)).toHaveBeenCalledWith({ padding: 8 });
+  });
+
+  it('forwards autoUpdateOptions to floating-ui autoUpdate', () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    anchor(floating, reference, { autoUpdateOptions: { elementResize: false } });
+    expect(vi.mocked(fui.autoUpdate).mock.calls[0]![3]).toEqual({ elementResize: false });
   });
 
   it('adds size() for matchWidth and omits flip/shift when disabled', () => {

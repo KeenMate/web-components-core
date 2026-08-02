@@ -9,6 +9,7 @@
  * are thin wrappers over this.
  */
 import {
+  arrow as arrowMiddleware,
   autoUpdate,
   computePosition,
   flip as flipMiddleware,
@@ -17,7 +18,7 @@ import {
   size as sizeMiddleware,
   type Middleware,
 } from '@floating-ui/dom';
-import type { AnchorHandle, AnchorOptions } from './types.js';
+import type { AnchorHandle, AnchorOptions, Placement } from './types.js';
 
 type Reference = Parameters<typeof computePosition>[0];
 
@@ -26,6 +27,20 @@ function inheritTheme(source: HTMLElement, target: HTMLElement): void {
   const themed = source.closest?.('[data-theme]');
   const theme = themed?.getAttribute('data-theme');
   if (theme != null) target.setAttribute('data-theme', theme);
+}
+
+const OPPOSITE_SIDE = { top: 'bottom', right: 'left', bottom: 'top', left: 'right' } as const;
+
+/** Position an arrow element on the side facing the reference (centered via its own size). */
+function positionArrow(el: HTMLElement, placement: Placement, data: { x?: number; y?: number } | undefined): void {
+  if (!data) return;
+  const side = placement.split('-')[0] as keyof typeof OPPOSITE_SIDE;
+  const staticSide = OPPOSITE_SIDE[side];
+  el.style.left = data.x != null ? `${data.x}px` : '';
+  el.style.top = data.y != null ? `${data.y}px` : '';
+  el.style.right = '';
+  el.style.bottom = '';
+  el.style[staticSide] = `-${el.offsetWidth / 2}px`;
 }
 
 /**
@@ -51,11 +66,32 @@ function buildMiddleware(opts: AnchorOptions, flipEnabled: boolean): Middleware[
   if (flipEnabled) {
     // lockPlacement:true — prefer returning to the initial placement over reordering.
     // ('freeze' flips normally on the first frame, then this rebuilds without flip.)
-    middleware.push(flipMiddleware(opts.lockPlacement === true ? { fallbackStrategy: 'initialPlacement' } : {}));
+    middleware.push(
+      flipMiddleware({
+        ...(opts.lockPlacement === true ? { fallbackStrategy: 'initialPlacement' } : {}),
+        ...(opts.flipPadding != null ? { padding: opts.flipPadding } : {}),
+      }),
+    );
   }
 
   const shift = opts.shift ?? 8;
   if (shift !== false) middleware.push(shiftMiddleware({ padding: shift }));
+
+  // Height-cap (calendar / dropdown): scroll internally instead of overflowing.
+  if (opts.maxHeight) {
+    const padding = typeof opts.maxHeight === 'object' ? opts.maxHeight.padding : undefined;
+    middleware.push(
+      sizeMiddleware({
+        padding,
+        apply({ availableHeight, elements }) {
+          elements.floating.style.maxHeight = `${Math.max(0, availableHeight)}px`;
+        },
+      }),
+    );
+  }
+
+  // Arrow last (floating-ui requirement): it reads the final resolved coordinates.
+  if (opts.arrow) middleware.push(arrowMiddleware({ element: opts.arrow.element, padding: opts.arrow.padding }));
 
   return middleware;
 }
@@ -94,9 +130,10 @@ export function anchor(
       strategy,
       middleware,
       ...(opts.platform ? { platform: opts.platform } : {}),
-    }).then(({ x, y, placement: resolved }) => {
+    }).then(({ x, y, placement: resolved, middlewareData }) => {
       floating.style.left = `${x}px`;
       floating.style.top = `${y}px`;
+      if (opts.arrow) positionArrow(opts.arrow.element, resolved, middlewareData.arrow);
       if (freeze && !frozen) {
         // Pin the placement floating-ui just chose; stop flipping from now on.
         frozen = true;
@@ -105,11 +142,12 @@ export function anchor(
         middleware = buildMiddleware(opts, false);
       }
       opts.onPlaced?.(resolved);
+      opts.onComputed?.({ x, y, placement: resolved });
     });
   };
 
   let cleanup: (() => void) | undefined;
-  if (opts.autoUpdate ?? true) cleanup = autoUpdate(reference, floating, run);
+  if (opts.autoUpdate ?? true) cleanup = autoUpdate(reference, floating, run, opts.autoUpdateOptions);
   else run();
 
   return {
