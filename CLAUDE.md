@@ -5,7 +5,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Status: core v1 implemented
 
 The `@keenmate/web-components-core` package (inputs model + `BlissElement`) is
-built under `src/` with full unit tests. **`SPEC.md` remains the source of
+built under `src/` with full unit tests. **`docs/SPEC.md` remains the source of
 truth** for design intent — read the relevant section before changing behavior,
 and keep it in sync. §11 open questions resolved so far: config key field is
 `configKey` (§11.2); the string converter is `toText` (§11.1); `applyConfig`

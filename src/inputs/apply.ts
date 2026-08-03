@@ -2,7 +2,7 @@
  * The parse + validate + stage pipeline shared by BOTH entry points. Attributes
  * go through {@link resolveFromAttribute}, JS-assigned properties through
  * {@link resolveFromProperty}, and both produce the same {@link Resolved} shape
- * — so everything is reactive by construction. See SPEC.md §6.
+ * — so everything is reactive by construction. See docs/SPEC.md §6.
  */
 import type { AttrReader, InputDef, Reactivity } from './types.js';
 

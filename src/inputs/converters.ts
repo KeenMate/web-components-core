@@ -1,14 +1,14 @@
 /**
  * The `to*` converter factories. Each returns a {@link Converter} that wires
  * `fromAttribute` (parse) and `validate` (property guard) from the same inputs,
- * so both entry points enforce identical correctness. See SPEC.md §5.
+ * so both entry points enforce identical correctness. See docs/SPEC.md §5.
  *
  * A brand-new input type is just a new factory created anywhere (core or a
  * component) — there is no closed union and no central switch to edit.
  */
 import type { Converter } from './types.js';
 
-/** A {@link Converter} that also exposes its permitted values (optional docs autodetect, SPEC.md §8). */
+/** A {@link Converter} that also exposes its permitted values (optional docs autodetect, docs/SPEC.md §8). */
 export interface EnumConverter<V extends string> extends Converter<V> {
   readonly values: readonly V[];
 }

@@ -1,6 +1,6 @@
 {
   "name": "@keenmate/web-components-core",
-  "version": "1.0.0-rc01",
+  "version": "1.0.0-rc02",
   "description": "Reactive input model (converter-driven attribute/property/callback definitions) and the BlissElement base class, shared across KeenMate web components.",
   "type": "module",
   "license": "MIT",
@@ -28,8 +28,7 @@
   },
   "files": [
     "dist",
-    "SPEC.md",
-    "docs"
+    "docs/reactivity-and-batching.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.build.json",

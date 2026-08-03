@@ -1,7 +1,7 @@
 /**
  * The reactive input model. Every public input — attribute, complex property,
  * or callback — is one {@link InputDef} row whose {@link Converter} owns both
- * parsing (attribute path) and validation (property path). See SPEC.md §4.
+ * parsing (attribute path) and validation (property path). See docs/SPEC.md §4.
  */
 
 /** The subset of an element the attribute path reads. */

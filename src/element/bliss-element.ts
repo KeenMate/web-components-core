@@ -9,7 +9,7 @@
  * connect/disconnect — a plain DOM move re-activates without rebuilding.
  * The input table is OPT-IN: a subclass without `static inputs` still gets the
  * SSR base plus
- * `dispatch`/`define` (web-grid's use). See SPEC.md §6.
+ * `dispatch`/`define` (web-grid's use). See docs/SPEC.md §6.
  */
 import { resolveFromAttribute, resolveFromProperty, type Resolved } from '../inputs/apply.js';
 import type { AttrReader, InputDef } from '../inputs/types.js';

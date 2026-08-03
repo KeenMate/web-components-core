@@ -7,8 +7,23 @@ re-implement — a reactive input model, a base element class, converters,
 categorized logging, and the `window.components` global — into one package so
 that correctness lives in a single place and can't drift.
 
-> **`SPEC.md` is the source of truth** for design intent. This README is the tour;
-> read the relevant SPEC section before changing behavior.
+> **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
+> README is the tour; read the relevant SPEC section before changing behavior.
+
+## What's New in v1.0.0-rc02
+
+- **Form association — `el.form` for form-associated components.** `BlissElement`
+  now exposes a public `get form()` (plus a protected, lazily-attached `internals`),
+  so a subclass with `static formAssociated = true` reports its owning `<form>` via
+  `el.form` / `event.target.form` exactly like a native control. Custom elements
+  get no `.form` for free — the browser records the association only inside
+  `ElementInternals` — so frameworks that delegate form changes by reading
+  `target.form` (e.g. Phoenix LiveView's `phx-change`) otherwise resolve nothing.
+  `attachInternals()` is called once and memoized, and it degrades to `null` under
+  SSR / older jsdom. This is the base that `web-multiselect` and
+  `web-daterangepicker` build their `<form>` integration on.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
 ## Install
 
@@ -81,8 +96,9 @@ The `to*` factory library sets both paths from the same inputs:
 `BlissElement` wires both entry points (attribute + property) through the *same*
 pipeline, so everything is reactive by construction. It is SSR-safe, computes
 `observedAttributes` from the input table, coalesces bursts into a single update,
-and provides typed `dispatch()`. The input table is **opt-in** — a subclass
-without `static inputs` still gets the SSR base + `dispatch`/`define`.
+and provides typed event dispatch. The input table is **opt-in** — a subclass
+without `static inputs` still gets the SSR-safe base plus typed events (`emit()` /
+`on()`), which is how `web-grid` uses it while keeping its own config-object API.
 
 ```ts
 class WebMultiSelect extends BlissElement {
@@ -298,8 +314,8 @@ extensions on relative imports (moduleResolution `Bundler`) and
 - **[`docs/reactivity-and-batching.md`](docs/reactivity-and-batching.md)** — how
   the pipeline coalesces bursts, `reinit()` vs `update()`, how many times a
   component rebuilds, and the mass-update tools (`setAttributes` / `batch`).
-- **`SPEC.md`** — full design intent, the per-component divergence this
-  consolidates, and the decisions log.
+- **[`docs/SPEC.md`](docs/SPEC.md)** — full design intent, the per-component
+  divergence this consolidates, and the decisions log.
 - **`CHANGELOG.md`** — what's landed.
 
 ## License

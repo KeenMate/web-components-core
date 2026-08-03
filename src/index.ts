@@ -1,4 +1,4 @@
-/** `@keenmate/web-components-core` — public surface. See SPEC.md. */
+/** `@keenmate/web-components-core` — public surface. See docs/SPEC.md. */
 
 // Reactive input model
 export type { AttrReader, Converter, InputDef, Reactivity } from './inputs/types.js';
