@@ -35,7 +35,10 @@
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "clean:dist": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\"",
+    "clean": "node -e \"const fs=require('fs');fs.rmSync('dist',{recursive:true,force:true});fs.readdirSync('.').filter(f=>f.endsWith('.tgz')).forEach(f=>fs.rmSync(f))\"",
+    "prepublishOnly": "npm run clean:dist && npm run build"
   },
   "dependencies": {
     "@floating-ui/dom": "^1.8.0",
