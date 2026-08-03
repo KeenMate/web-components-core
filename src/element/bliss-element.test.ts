@@ -513,6 +513,45 @@ describe('dispatch', () => {
   });
 });
 
+class FormEl extends BlissElement {
+  static formAssociated = true;
+}
+define('form-el', FormEl as unknown as CustomElementConstructor);
+
+describe('BlissElement form association', () => {
+  it('exposes internals lazily and memoizes the same object (attachInternals called once)', () => {
+    const el = new FormEl();
+    const spy = vi.spyOn(el, 'attachInternals');
+    const a = (el as unknown as { internals: ElementInternals | null }).internals;
+    const b = (el as unknown as { internals: ElementInternals | null }).internals;
+    expect(a).not.toBeNull();
+    expect(b).toBe(a); // memoized
+    expect(spy).toHaveBeenCalledTimes(1); // attachInternals may run at most once
+  });
+
+  it('form getter reads through ElementInternals.form', () => {
+    const el = new FormEl();
+    const form = document.createElement('form');
+    // jsdom does not wire real form association, so model it via attachInternals.
+    vi.spyOn(el, 'attachInternals').mockReturnValue({ form } as unknown as ElementInternals);
+    expect(el.form).toBe(form);
+  });
+
+  it('form is null when not inside a form', () => {
+    const el = new FormEl();
+    document.body.appendChild(el);
+    expect(el.form).toBeNull(); // internals.form is undefined → null
+    el.remove();
+  });
+
+  it('degrades to null when attachInternals is unavailable (SSR / older jsdom)', () => {
+    const el = new FormEl();
+    Object.defineProperty(el, 'attachInternals', { value: undefined, configurable: true });
+    expect((el as unknown as { internals: ElementInternals | null }).internals).toBeNull();
+    expect(el.form).toBeNull();
+  });
+});
+
 describe('define', () => {
   it('is idempotent', () => {
     expect(() => {

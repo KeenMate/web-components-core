@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`BlissElement` form association** (`src/element/bliss-element.ts`): a public
+  `get form(): HTMLFormElement | null` and a protected, lazily-attached
+  `get internals(): ElementInternals | null`. Form-associated custom elements
+  (`static formAssociated = true`) participate in a form but — unlike native
+  controls — get no `.form` property for free; the browser records the
+  association only inside `ElementInternals`. Core now re-exposes it so `el.form`
+  and `event.target.form` resolve like a native input (host frameworks such as
+  Phoenix LiveView route form changes by reading `target.form`). `attachInternals()`
+  runs once, on first `internals`/`form` access, and is memoized — subclasses
+  must read `this.internals` rather than calling `attachInternals()` themselves.
+  Degrades to `null` when `attachInternals` is unavailable (SSR / older jsdom).
+
 ## [1.0.0-rc01] - 2026-08-03
 
 ### Added

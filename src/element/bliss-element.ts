@@ -78,6 +78,7 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    */
   #preUpgradeKeys: Set<string> | null = null;
   #reflecting = false;
+  #internals?: ElementInternals;
   #logId?: string;
   #logLevel?: LogLevelDesc;
   #instanceLoggers?: Record<string, InstanceLogger>;
@@ -275,6 +276,42 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    */
   protected disconnect(): void {
     /* opt-in */
+  }
+
+  // ── form association ──────────────────────────────────────────────────────
+
+  /**
+   * This element's {@link ElementInternals}, lazily attached on first access and
+   * memoized. Available to form-associated components (`static formAssociated =
+   * true`); returns `null` when `attachInternals` is unavailable (SSR, older
+   * jsdom) or the element opts out. Because `attachInternals()` may be called at
+   * most once per element, a subclass must NOT call it itself — read this getter
+   * instead (e.g. `this.internals?.setFormValue(value)`).
+   */
+  protected get internals(): ElementInternals | null {
+    if (this.#internals) return this.#internals;
+    if (typeof this.attachInternals !== 'function') return null;
+    try {
+      return (this.#internals = this.attachInternals());
+    } catch {
+      // attachInternals throws if internals were already attached elsewhere or
+      // the feature is disabled; degrade to null rather than break construction.
+      return null;
+    }
+  }
+
+  /**
+   * The `<form>` this element is associated with, or `null`. A form-associated
+   * custom element (`static formAssociated = true`) participates in its form, but
+   * — unlike a native control — gets NO `.form` property for free: the browser
+   * records the association only inside {@link ElementInternals}. This re-exposes
+   * it so `el.form` and `event.target.form` resolve like a native input. Host
+   * frameworks that route form changes by reading `target.form` (e.g. Phoenix
+   * LiveView's `phx-change` delegation) depend on it. Unlike `closest('form')`,
+   * `ElementInternals.form` honours shadow-DOM boundaries and `form=` association.
+   */
+  get form(): HTMLFormElement | null {
+    return this.internals?.form ?? null;
   }
 
   // ── events & callbacks (SPEC §12.5) ───────────────────────────────────────
