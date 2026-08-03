@@ -115,6 +115,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   analyzer config preset (`blissAnalyzerConfig`) and a pure, unit-tested extractor
   (`extractBlissClass`). Build-time only — no runtime dependency (the analyzer
   injects `typescript`).
+- **CEM: `cssVariablesFromManifestPlugin()`** — a build-time analyzer plugin that
+  reads a KeenMate `component-variables.manifest.json` and injects its variables
+  into each custom-element declaration as `cssProperties`, so the VS Code /
+  JetBrains editor-integration generators emit CSS-variable autocomplete
+  (`vscode.css-custom-data.json` + `web-types.json`) for a component's `--*`
+  theming surface. The manifest is the single source of truth (hundreds of
+  entries), so this beats hand-annotating each variable as an `@cssproperty` JSDoc
+  tag. Options: `manifestPath` (default `component-variables.manifest.json`,
+  resolved from the analyzer cwd) and `include: 'component' | 'base' | 'both'`
+  (default `'component'`). Retires the identical local plugin web-multiselect had
+  hand-rolled; web-daterangepicker + web-treeview (same manifest shape) get the
+  autocomplete by adding one line to their configs. The minimal Node built-in
+  typings it needs live in `src/cem/node-builtins.d.ts` so core keeps no global
+  `@types/node` dependency.
 - **`InputDef` / `EventDef` doc metadata**: optional `description` and
   `deprecated` fields, read by the CEM tooling and otherwise ignored at runtime.
 - **`InputDef.type` doc override** (SPEC §12.6): an optional string that replaces

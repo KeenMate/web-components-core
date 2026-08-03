@@ -8,6 +8,7 @@
  */
 export { blissAnalyzerConfig, type BlissAnalyzerConfig, type BlissAnalyzerOptions } from './config.js';
 export { blissInputsPlugin, type CemPlugin } from './plugin.js';
+export { cssVariablesFromManifestPlugin, type CssVariablesPluginOptions } from './css-variables.js';
 export {
   extractBlissClass,
   extractBlissClasses,
