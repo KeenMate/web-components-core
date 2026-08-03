@@ -17,7 +17,7 @@
 // needs live in `./node-builtins.d.ts`.
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { CemPlugin } from './plugin.js';
+import type { CemPackageDoc, CemPlugin } from './plugin.js';
 
 /** One row in a `component-variables.manifest.json` variable list. */
 interface ManifestVariable {
@@ -65,10 +65,6 @@ interface CemDeclaration {
   cssProperties?: CssPropertyDoc[];
   [key: string]: unknown;
 }
-interface CemModuleDoc {
-  declarations?: CemDeclaration[];
-  [key: string]: unknown;
-}
 
 /**
  * Create the plugin. Place it BEFORE the VS Code / JetBrains generators in your
@@ -90,7 +86,7 @@ export function cssVariablesFromManifestPlugin(options: CssVariablesPluginOption
   const manifestPath = resolve(process.cwd(), options.manifestPath ?? 'component-variables.manifest.json');
   const include = options.include ?? 'component';
 
-  // Read + map once, lazily; moduleLinkPhase runs once per module.
+  // Read + map once, lazily (packageLinkPhase runs once over the whole manifest).
   let cssProperties: CssPropertyDoc[] | null = null;
   const load = (): CssPropertyDoc[] => {
     if (cssProperties) return cssProperties;
@@ -104,13 +100,18 @@ export function cssVariablesFromManifestPlugin(options: CssVariablesPluginOption
 
   return {
     name: 'bliss-css-variables-from-manifest',
-    moduleLinkPhase({ moduleDoc }: { moduleDoc: CemModuleDoc }) {
+    // packageLinkPhase (not moduleLinkPhase): it runs after `customElement` /
+    // `tagName` are settled — including core's `registerComponent()` recognition —
+    // and before the editor-integration generators read the declarations.
+    packageLinkPhase({ customElementsManifest }: { customElementsManifest: CemPackageDoc }) {
       const props = load();
       if (!props.length) return;
-      for (const decl of moduleDoc.declarations ?? []) {
-        // Manifest is the source of truth — replace, don't merge, so a variable
-        // removed from the manifest can't linger from a prior declaration.
-        if (decl.customElement) decl.cssProperties = props;
+      for (const mod of customElementsManifest.modules ?? []) {
+        for (const decl of (mod.declarations ?? []) as CemDeclaration[]) {
+          // Manifest is the source of truth — replace, don't merge, so a variable
+          // removed from the manifest can't linger from a prior declaration.
+          if (decl.customElement) decl.cssProperties = props;
+        }
       }
     },
   };

@@ -22,7 +22,10 @@ interface Decl {
   cssProperties?: Array<{ name: string; description?: string }>;
 }
 const run = (plugin: ReturnType<typeof cssVariablesFromManifestPlugin>, declarations: Decl[]) =>
-  plugin.moduleLinkPhase?.({ moduleDoc: { declarations }, context: undefined } as never);
+  plugin.packageLinkPhase?.({
+    customElementsManifest: { modules: [{ declarations }] },
+    context: undefined,
+  } as never);
 
 describe('cssVariablesFromManifestPlugin', () => {
   it('injects componentVariables as cssProperties on custom-element declarations only', () => {

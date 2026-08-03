@@ -40,11 +40,23 @@ interface CemModuleDoc {
   [key: string]: unknown;
 }
 
-/** The analyzer's plugin interface (only the hooks this plugin uses). */
+/** The analyzer's plugin interface (only the hooks these plugins use). */
 export interface CemPlugin {
   name: string;
   analyzePhase?(params: { ts: unknown; node: unknown; moduleDoc: CemModuleDoc; context: unknown }): void;
   moduleLinkPhase?(params: { moduleDoc: CemModuleDoc; context: unknown }): void;
+  /**
+   * Runs after all modules are linked, over the whole manifest — the phase where
+   * `customElement` / `tagName` are settled (including core's `registerComponent()`
+   * recognition) and downstream generators read declarations.
+   */
+  packageLinkPhase?(params: { customElementsManifest: CemPackageDoc; context: unknown }): void;
+}
+
+/** Minimal shape of the whole-manifest object passed to `packageLinkPhase`. */
+export interface CemPackageDoc {
+  modules?: CemModuleDoc[];
+  [key: string]: unknown;
 }
 
 /** Merge an attribute/member/event by `name`, extracted data winning on conflicts. */
