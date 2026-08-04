@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc03] - 2026-08-04
+
+### Added
+
+- **`anchor({ maxWidth })`** (`src/positioning/anchor.ts`): a width-cap option
+  symmetric with the existing `maxHeight`. Adds a floating-ui `size()` middleware
+  that caps the floating element's `max-width` to the space available on the
+  resolved side — `true` for no inset, `{ padding }` to inset from the viewport
+  edges — so a user-resizable dropdown/popover can't be dragged past the viewport
+  edge (and long content wraps instead of overflowing horizontally). Mirrors
+  `maxHeight`; only sets `max-width`. (First consumer: `<web-dropzone>`'s
+  resizable compact-mode popover.)
+
 ## [1.0.0-rc02] - 2026-08-03
 
 ### Added

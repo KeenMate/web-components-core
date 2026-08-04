@@ -89,6 +89,14 @@ export interface AnchorOptions {
    */
   maxHeight?: boolean | { padding?: number };
   /**
+   * Cap the floating element's width to the space available on the resolved side
+   * (floating-ui `size()`), so a user-resizable panel can't be dragged past the
+   * viewport edge (and long content wraps instead of overflowing horizontally).
+   * `true` uses no extra inset; `{ padding }` insets from the viewport edges.
+   * Mirrors {@link maxHeight}; only sets `max-width`.
+   */
+  maxWidth?: boolean | { padding?: number };
+  /**
    * Render an arrow that points at the reference. Core adds floating-ui's
    * `arrow()` middleware and, each frame, positions `element` along the resolved
    * side (centered via its own measured size, cleared/re-set on flip). `element`

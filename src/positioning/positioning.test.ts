@@ -74,6 +74,20 @@ describe('anchor', () => {
     expect(vi.mocked(fui.arrow)).toHaveBeenCalledWith({ element: arrowEl, padding: undefined });
   });
 
+  it('appends a size() width-cap for maxWidth whose apply sets max-width', () => {
+    const floating = document.createElement('div');
+    const reference = document.createElement('button');
+    anchor(floating, reference, { maxWidth: { padding: 8 } });
+    // offset → flip → shift → size(maxWidth)
+    const stack = mw();
+    expect(stack.map((m) => m.name)).toEqual(['offset', 'flip', 'shift', 'size']);
+    // The mocked size() carries the { padding, apply } options through.
+    const sizeMw = stack.find((m) => m.name === 'size') as unknown as { options: { padding?: number; apply: (a: unknown) => void } };
+    expect(sizeMw.options.padding).toBe(8);
+    sizeMw.options.apply({ availableWidth: 300, elements: { floating } });
+    expect(floating.style.maxWidth).toBe('300px');
+  });
+
   it('passes flipPadding through to flip()', () => {
     const floating = document.createElement('div');
     const reference = document.createElement('button');

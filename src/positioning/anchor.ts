@@ -93,6 +93,20 @@ function buildMiddleware(opts: AnchorOptions, flipEnabled: boolean): Middleware[
     );
   }
 
+  // Width-cap (user-resizable panel): stop the floating element overflowing the
+  // viewport horizontally. Mirrors maxHeight; only sets max-width.
+  if (opts.maxWidth) {
+    const padding = typeof opts.maxWidth === 'object' ? opts.maxWidth.padding : undefined;
+    middleware.push(
+      sizeMiddleware({
+        padding,
+        apply({ availableWidth, elements }) {
+          elements.floating.style.maxWidth = `${Math.max(0, availableWidth)}px`;
+        },
+      }),
+    );
+  }
+
   // Arrow last (floating-ui requirement): it reads the final resolved coordinates.
   if (opts.arrow) middleware.push(arrowMiddleware({ element: opts.arrow.element, padding: opts.arrow.padding }));
 

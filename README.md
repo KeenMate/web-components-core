@@ -10,6 +10,18 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc03
+
+- **`anchor({ maxWidth })` — cap a floating panel's width to the viewport.** The
+  low-level `anchor()` positioning primitive gains a `maxWidth` option symmetric
+  with `maxHeight`: it caps the floating element's `max-width` to the space
+  available on the resolved side (`true` for no inset, `{ padding }` to inset from
+  the viewport edges), so a user-resizable dropdown/popover can't be dragged past
+  the viewport edge. First consumer: `<web-dropzone>`'s resizable compact-mode
+  popover.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc02
 
 - **Form association — `el.form` for form-associated components.** `BlissElement`
