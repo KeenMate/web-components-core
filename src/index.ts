@@ -47,8 +47,22 @@ export type { StyleSlot, StyleSlotOptions } from './dom/adopt-styles.js';
 export { extractConsumedCssVars, declaredCssVars, suggestCssVars, lintCssVars } from './dom/css-var-lint.js';
 export type { CssVarFinding } from './dom/css-var-lint.js';
 
-// Logging (SPEC §12.1)
+// Device / viewport / orientation detection (SPEC §12.9)
+export { getEnvironment, observeEnvironment, configureBreakpoints } from './environment/environment.js';
+export type {
+  EnvironmentSnapshot,
+  EnvironmentListener,
+  ObserveOptions,
+  PointerType,
+  Orientation,
+  OS,
+  BreakpointMap,
+} from './environment/environment.js';
+
+// Logging (SPEC §12.1) — engine is vendored (no `loglevel` dependency); see log-core.ts.
 export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';
 export type { LoggerBundle, Logger, LogLevelDesc, InstanceLogger } from './logging/create-loggers.js';
+export { setLogPersistKeyPrefix, getLogPersistKeyPrefix, levels as LOG_LEVELS } from './logging/log-core.js';
+export type { LogLevelName } from './logging/log-core.js';
 export { createPerfLogger } from './logging/perf-logger.js';
 export type { PerfLogger } from './logging/perf-logger.js';

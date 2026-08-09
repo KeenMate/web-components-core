@@ -1,17 +1,34 @@
 /**
- * Categorized named loggers over `loglevel`. One call per component produces a
- * `NAMESPACE:CATEGORY` logger per category, each with a color-coded `%c` prefix
- * (SPEC §12.1). Colour is applied via a `loglevel` `methodFactory` so the `%c`
- * directive and its CSS argument are ordered correctly — the message arguments
- * stay uncoloured and structured-loggable. `loglevel-plugin-prefix` is
- * deliberately not used (its browser `%c` handling is the bug this avoids).
+ * Categorized named loggers over the vendored {@link ./log-core} engine. One
+ * call per component produces a `NAMESPACE:CATEGORY` logger per category, each
+ * with a color-coded `%c` prefix (SPEC §12.1). Colour is applied via the
+ * engine's `methodFactory` so the `%c` directive and its CSS argument are
+ * ordered correctly — the message arguments stay uncoloured and structured-
+ * loggable.
+ *
+ * The logging engine is vendored (no `loglevel` dependency) — see log-core.ts
+ * for why. Consumers depend only on the {@link Logger} / {@link LogLevelDesc}
+ * surface below, never on the engine internals.
  */
-import * as log from 'loglevel';
+import { levels, getLogger, type LogLevelDesc, type CoreLogger } from './log-core.js';
 
-type Logger = log.Logger;
-type LogLevelDesc = log.LogLevelDesc;
+/**
+ * The public logger surface: the five level methods plus level control.
+ * Deliberately lean — it does NOT expose engine internals (`methodFactory`,
+ * `levels`, `enableAll`, …), so nothing downstream binds to the vendored
+ * implementation. The concrete {@link CoreLogger} structurally satisfies it.
+ */
+export interface Logger {
+  trace(...args: unknown[]): void;
+  debug(...args: unknown[]): void;
+  info(...args: unknown[]): void;
+  warn(...args: unknown[]): void;
+  error(...args: unknown[]): void;
+  setLevel(level: LogLevelDesc, persist?: boolean): void;
+  getLevel(): number;
+}
 
-export type { Logger, LogLevelDesc };
+export type { LogLevelDesc };
 
 /** Baseline categories. A component uses these as-is, redefines, or extends them. */
 export const DEFAULT_CATEGORIES = ['INIT', 'DATA', 'UI'] as const;
@@ -31,10 +48,10 @@ const PALETTE = [
   '#8a6d3b', // brown
 ] as const;
 
-const PREFIXED = new WeakSet<Logger>();
+const PREFIXED = new WeakSet<CoreLogger>();
 
 /** Wrap a logger's methodFactory to emit `%c[NAMESPACE:CATEGORY]` + CSS, then the raw args. Idempotent. */
-function applyColorPrefix(logger: Logger, label: string, color: string): void {
+function applyColorPrefix(logger: CoreLogger, label: string, color: string): void {
   if (PREFIXED.has(logger)) return;
   PREFIXED.add(logger);
   const original = logger.methodFactory;
@@ -67,22 +84,22 @@ export interface InstanceLogger {
 interface CategoryMeta {
   label: string;
   color: string;
-  logger: Logger;
+  logger: CoreLogger;
 }
 
-/** Resolve a `loglevel` level descriptor (name or number) to its numeric value. */
+/** Resolve a level descriptor (name or number) to its numeric value. */
 function toLevelNum(desc: LogLevelDesc): number {
   if (typeof desc === 'number') return desc;
-  return log.levels[desc.toUpperCase() as keyof typeof log.levels] ?? log.levels.SILENT;
+  return levels[desc.toUpperCase() as keyof typeof levels] ?? levels.SILENT;
 }
 
 /** [method, its level, the `console` method to emit through]. `trace` uses `debug` to avoid stack spam. */
 const INSTANCE_METHODS: readonly [keyof InstanceLogger, number, 'debug' | 'info' | 'warn' | 'error'][] = [
-  ['trace', log.levels.TRACE, 'debug'],
-  ['debug', log.levels.DEBUG, 'debug'],
-  ['info', log.levels.INFO, 'info'],
-  ['warn', log.levels.WARN, 'warn'],
-  ['error', log.levels.ERROR, 'error'],
+  ['trace', levels.TRACE, 'debug'],
+  ['debug', levels.DEBUG, 'debug'],
+  ['info', levels.INFO, 'info'],
+  ['warn', levels.WARN, 'warn'],
+  ['error', levels.ERROR, 'error'],
 ];
 
 function makeInstanceLogger(meta: CategoryMeta, instanceId: string, getOverride: () => LogLevelDesc | undefined): InstanceLogger {
@@ -93,7 +110,7 @@ function makeInstanceLogger(meta: CategoryMeta, instanceId: string, getOverride:
     out[name] = (...args: unknown[]): void => {
       const override = getOverride();
       // Effective threshold = the more verbose (lower) of type level and override.
-      const effective = Math.min(meta.logger.getLevel(), override == null ? log.levels.SILENT : toLevelNum(override));
+      const effective = Math.min(meta.logger.getLevel(), override == null ? levels.SILENT : toLevelNum(override));
       if (methodLevel < effective) return;
       const emit = (console[consoleMethod] ?? console.log).bind(console);
       emit(`%c[${meta.label}]%c ${instanceId}`, css, idCss, ...args);
@@ -145,7 +162,7 @@ export function createLoggers<C extends string>(
   categories.forEach((category, i) => {
     const label = `${namespace}:${category}`;
     const color = PALETTE[i % PALETTE.length]!;
-    const logger = log.getLogger(label);
+    const logger = getLogger(label);
     applyColorPrefix(logger, label, color);
     loggers[category] = logger;
     meta[category] = { label, color, logger };

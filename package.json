@@ -40,8 +40,7 @@
     "prepublishOnly": "npm run clean:dist && npm run build"
   },
   "dependencies": {
-    "@floating-ui/dom": "^1.8.0",
-    "loglevel": "^1.9.2"
+    "@floating-ui/dom": "^1.8.0"
   },
   "devDependencies": {
     "jsdom": "^24.1.0",

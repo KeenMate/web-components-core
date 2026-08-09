@@ -706,3 +706,50 @@ convention); an `on<Name>` property that collides with an input `configKey`.
 convention implies (`rowdelete` → `row-delete`, treeview's tense drift). Core
 accepts every existing name verbatim; standardizing the vocabulary is a breaking
 change and rides the same major bump that adopts core.
+
+### 12.9 Environment (device / viewport / orientation) — IMPLEMENTED (`src/environment/`)
+
+**Status:** built (main index — tiny, zero-dep). The gap: components already gate
+behavior on *viewport width* but have no signal for *device capability*. The
+motivating bug is web-daterangepicker on a phone — the floating calendar steals
+focus from the input, so the soft keyboard flashes open then shut and the panel
+dismisses. The fix is a fullscreen calendar on touch devices, but width alone
+can't decide that: a **landscape phone is wide** (width says "desktop") yet still
+wants fullscreen. The deciding fact is capability, not size.
+
+**One shared observable.** `observeEnvironment(cb, { immediate? }) => unsubscribe`
+is a lazily-started, ref-counted singleton over `matchMedia` + a rAF-throttled
+`resize`; the shared listeners attach on the first subscriber and detach on the
+last. `getEnvironment()` is the synchronous companion read (for `reinit()` /
+`connect()`). `configureBreakpoints({ mobile: 640, tablet: 1024, desktop: Infinity })`
+redefines the width buckets globally. SSR-safe: no `window`/`matchMedia` → a
+static desktop default + no-op unsubscribe. Detection is **feature-detection, not
+UA sniffing** — media queries are reliable AND already reactive.
+
+**`EnvironmentSnapshot`** carries: `pointer` (`coarse`/`fine`/`none`, from
+`(pointer: …)`), `hasCoarsePointer` (`(any-pointer: coarse)` — touch available at
+all), `canHover` (`(hover: hover)`), **`isTouchPrimary`** (`coarse && !hover` —
+*the* "phone/tablet, be aggressive" flag, honest in landscape where width lies),
+`orientation`, `viewportWidth`/`Height`, and the resolved `breakpoint` name.
+
+**OS hint (the one UA-derived exception).** `os`
+(`ios`/`android`/`macos`/`windows`/`linux`/`unknown`) plus `isApple`/`isAndroid`
+are **best-effort UA/Client-Hints** — there is no media query for "is this Apple",
+so this is identity, not capability: constant per session (memoized), derived from
+`navigator.userAgentData.platform` when present, else the UA string, with the
+iPadOS-13+-masquerades-as-desktop-macOS correction via `maxTouchPoints > 1`. It is
+documented as a **hint for genuine OS-specific quirks** (an iOS-Safari-only bug),
+NOT a behavior gate where a capability query exists — `isTouchPrimary` stays the
+decision signal (gating on `os === 'android'` would miss touch-Windows tablets and
+mislabel iPads).
+
+**`BlissElement` integration — the `environmentChanged(env)` hook.** Overriding
+the (no-op-default) hook opts the element in: the base subscribes on every
+`connect` and unsubscribes on every `disconnect` (balanced with the lifecycle,
+via an override check so non-overriding elements attach NO global listeners). It
+fires once immediately with the current snapshot on connect, then on every change
+— a DOM move re-subscribes, an orientation flip re-fires. Components resolve their
+own presentation from it (e.g. daterangepicker: `presentation: 'auto'` →
+fullscreen when `env.isTouchPrimary`). The shared `resolvePresentation`-style
+convention was deferred to the daterangepicker PR — core ships the primitive +
+hook only.

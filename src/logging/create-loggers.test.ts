@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import * as log from 'loglevel';
+import { getLogger, levels } from './log-core.js';
 import { DEFAULT_CATEGORIES, createLoggers, type LogLevelDesc } from './create-loggers.js';
 
 afterEach(() => {
@@ -11,7 +11,7 @@ describe('createLoggers', () => {
     const { loggers, LOGGING_CATEGORIES } = createLoggers('NSDEFAULTS');
     expect(Object.keys(loggers)).toEqual([...DEFAULT_CATEGORIES]);
     expect(LOGGING_CATEGORIES).toEqual([...DEFAULT_CATEGORIES]);
-    expect(log.getLogger('NSDEFAULTS:INIT')).toBe(loggers.INIT);
+    expect(getLogger('NSDEFAULTS:INIT')).toBe(loggers.INIT);
   });
 
   it('supports redefined and extended category lists', () => {
@@ -42,20 +42,20 @@ describe('createLoggers', () => {
   it('enableLogging() defaults to debug; disableLogging() silences', () => {
     const bundle = createLoggers('NSLEVELS');
     bundle.enableLogging();
-    expect(bundle.loggers.INIT.getLevel()).toBe(log.levels.DEBUG);
+    expect(bundle.loggers.INIT.getLevel()).toBe(levels.DEBUG);
     bundle.disableLogging();
-    expect(bundle.loggers.INIT.getLevel()).toBe(log.levels.SILENT);
+    expect(bundle.loggers.INIT.getLevel()).toBe(levels.SILENT);
   });
 
   it('setLogLevel sets all categories; setCategoryLevel sets one', () => {
     const bundle = createLoggers('NSSETLEVEL');
     bundle.setLogLevel('warn');
-    expect(bundle.loggers.INIT.getLevel()).toBe(log.levels.WARN);
-    expect(bundle.loggers.UI.getLevel()).toBe(log.levels.WARN);
+    expect(bundle.loggers.INIT.getLevel()).toBe(levels.WARN);
+    expect(bundle.loggers.UI.getLevel()).toBe(levels.WARN);
 
     bundle.setCategoryLevel('UI', 'trace');
-    expect(bundle.loggers.UI.getLevel()).toBe(log.levels.TRACE);
-    expect(bundle.loggers.INIT.getLevel()).toBe(log.levels.WARN); // unchanged
+    expect(bundle.loggers.UI.getLevel()).toBe(levels.TRACE);
+    expect(bundle.loggers.INIT.getLevel()).toBe(levels.WARN); // unchanged
   });
 
   it('forInstance: instance override logs while the type stays silent', () => {

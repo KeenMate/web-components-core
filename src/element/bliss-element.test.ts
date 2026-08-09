@@ -552,6 +552,47 @@ describe('BlissElement form association', () => {
   });
 });
 
+class EnvElement extends BlissElement {
+  readonly envSnapshots: Array<{ breakpoint: string; os: string }> = [];
+  protected override environmentChanged(env: { breakpoint: string; os: string }): void {
+    this.envSnapshots.push({ breakpoint: env.breakpoint, os: env.os });
+  }
+}
+define('env-element', EnvElement as unknown as CustomElementConstructor);
+
+class PlainElement extends BlissElement {}
+define('plain-element', PlainElement as unknown as CustomElementConstructor);
+
+describe('environmentChanged hook', () => {
+  it('fires on connect for an element that overrides the hook', () => {
+    const el = document.createElement('env-element') as EnvElement;
+    document.body.appendChild(el);
+    expect(el.envSnapshots.length).toBe(1);
+    expect(el.envSnapshots[0]).toHaveProperty('breakpoint');
+    expect(el.envSnapshots[0]).toHaveProperty('os');
+  });
+
+  it('re-subscribes across a disconnect/reconnect (DOM move)', () => {
+    const el = document.createElement('env-element') as EnvElement;
+    document.body.appendChild(el);
+    el.remove();
+    document.body.appendChild(el);
+    expect(el.envSnapshots.length).toBe(2);
+  });
+
+  it('does not fire (or attach) for an element that leaves the hook as the no-op default', () => {
+    // The base must not subscribe when environmentChanged is not overridden.
+    const el = document.createElement('plain-element') as PlainElement;
+    expect(() => {
+      document.body.appendChild(el);
+      el.remove();
+    }).not.toThrow();
+    expect(
+      (el as unknown as { environmentChanged: unknown }).environmentChanged,
+    ).toBe(BlissElement.prototype['environmentChanged' as keyof BlissElement]);
+  });
+});
+
 describe('define', () => {
   it('is idempotent', () => {
     expect(() => {

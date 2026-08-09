@@ -14,6 +14,7 @@
 import { resolveFromAttribute, resolveFromProperty, type Resolved } from '../inputs/apply.js';
 import type { AttrReader, InputDef } from '../inputs/types.js';
 import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microtask-scheduler.js';
+import { observeEnvironment, type EnvironmentSnapshot } from '../environment/environment.js';
 import { trackInstance, untrackInstance } from '../global/instances.js';
 import { getLoggerBundle } from '../logging/logger-registry.js';
 import type { InstanceLogger, LogLevelDesc } from '../logging/create-loggers.js';
@@ -78,6 +79,8 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    */
   #preUpgradeKeys: Set<string> | null = null;
   #reflecting = false;
+  /** Unsubscribe from the environment observable; set only while connected AND `environmentChanged` is overridden. */
+  #envUnsub?: () => void;
   #internals?: ElementInternals;
   #logId?: string;
   #logLevel?: LogLevelDesc;
@@ -132,10 +135,19 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
     }
     this.#flushNow(); // reinit()/update() for any pending config, THEN activate
     this.connect();
+    // Subscribe to device/viewport/orientation ONLY when the subclass opts in by
+    // overriding environmentChanged — no global listeners for elements that don't
+    // care. The subscribe fires immediately, so the hook gets the current snapshot
+    // on connect, then again on every change until disconnect.
+    if (this.environmentChanged !== BlissElement.prototype.environmentChanged) {
+      this.#envUnsub = observeEnvironment((env) => this.environmentChanged(env));
+    }
   }
 
   disconnectedCallback(): void {
     untrackInstance(this.localName, this);
+    this.#envUnsub?.();
+    this.#envUnsub = undefined;
     this.disconnect();
   }
 
@@ -275,6 +287,22 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    * tear down structure here — only the live resources. No-op by default.
    */
   protected disconnect(): void {
+    /* opt-in */
+  }
+
+  /**
+   * React to the device/viewport/orientation (SPEC §12.9). Overriding this hook
+   * opts the element into the shared environment observable: the base subscribes
+   * on every connect and unsubscribes on every disconnect (balanced with
+   * {@link connect}/{@link disconnect}). It fires once immediately with the
+   * current {@link EnvironmentSnapshot} on connect, then again whenever the
+   * pointer type, hover capability, orientation, viewport size, or resolved
+   * breakpoint changes — e.g. to flip a calendar to fullscreen on a touch-primary
+   * device or an orientation change. No-op by default, so elements that don't
+   * override it attach no global listeners. For a one-off synchronous read inside
+   * `reinit()`/`connect()`, call `getEnvironment()` instead.
+   */
+  protected environmentChanged(_env: EnvironmentSnapshot): void {
     /* opt-in */
   }
 

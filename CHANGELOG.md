@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Environment detection** (`src/environment/`, SPEC §12.9): a zero-dep,
+  SSR-safe, ref-counted observable over `matchMedia` + `resize` for device,
+  viewport, and orientation. `getEnvironment()` (sync read),
+  `observeEnvironment(cb, { immediate? })` (subscribe; fires immediately then on
+  change), and `configureBreakpoints(map)` (redefine the width buckets). The
+  `EnvironmentSnapshot` reports `pointer`, `hasCoarsePointer`, `canHover`,
+  **`isTouchPrimary`** (`coarse && !hover` — the "phone/tablet" signal, honest in
+  landscape where width alone lies), `orientation`, `viewportWidth`/`Height`, and
+  the resolved `breakpoint`. Detection is feature-detection, not UA sniffing.
+- **OS hint** on the snapshot: `os`
+  (`ios`/`android`/`macos`/`windows`/`linux`/`unknown`) plus `isApple` /
+  `isAndroid`. This is the one UA/Client-Hints-derived field (there is no media
+  query for OS identity) — constant per session, with the iPadOS-masquerades-as-
+  macOS correction via `maxTouchPoints`. Documented as a hint for OS-specific
+  quirks, not a behavior gate (prefer `isTouchPrimary`).
+- **`BlissElement.environmentChanged(env)` hook**
+  (`src/element/bliss-element.ts`): overriding it opts the element into the
+  environment observable — the base subscribes on every connect and unsubscribes
+  on every disconnect (elements that don't override attach no listeners). Fires
+  immediately with the current snapshot on connect, then on every change (a DOM
+  move re-subscribes; an orientation flip re-fires). Motivating case: a component
+  can flip to a fullscreen presentation on touch-primary devices instead of a
+  focus-stealing floating panel.
+
 ## [1.0.0-rc03] - 2026-08-04
 
 ### Added
