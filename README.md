@@ -10,6 +10,28 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc04
+
+- **Environment detection — device, viewport, and orientation as one reactive
+  signal.** A new zero-dep, SSR-safe `getEnvironment()` / `observeEnvironment()`
+  (plus `configureBreakpoints()`) reports pointer type, hover capability,
+  orientation, viewport size, and the resolved breakpoint — all feature-detected,
+  not UA-sniffed. The load-bearing field is **`isTouchPrimary`** (`coarse &&
+  !hover`): the honest "phone/tablet" signal that stays correct on a wide
+  landscape phone where width alone would say "desktop". A best-effort `os` /
+  `isApple` / `isAndroid` hint covers genuine OS-specific quirks.
+- **`BlissElement.environmentChanged(env)` hook.** Override it to opt an element
+  into the environment observable — the base subscribes on connect and
+  unsubscribes on disconnect (no listeners for elements that don't override), and
+  it re-fires on every change. Lets a component flip to a fullscreen presentation
+  on touch devices instead of a focus-stealing floating panel.
+- **`loglevel` is no longer a runtime dependency.** The logging engine is now
+  vendored, so the package ships with a single runtime dependency
+  (`@floating-ui/dom`, and only when you use `/positioning`). `createLoggers()` is
+  unchanged; the persisted per-logger level key is namespaced (`km-log:…`).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc03
 
 - **`anchor({ maxWidth })` — cap a floating panel's width to the viewport.** The
@@ -43,9 +65,9 @@ See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 npm install @keenmate/web-components-core
 ```
 
-Runtime dependencies: **`loglevel`** (logging) and **`@floating-ui/dom`** — the
-latter used only by the `/positioning` subpath, so it stays out of the base
-import graph unless you position.
+Runtime dependencies: a single one — **`@floating-ui/dom`**, used only by the
+`/positioning` subpath, so it stays out of the base import graph unless you
+position. The logging engine is vendored (no `loglevel` dependency).
 
 ## The two load-bearing ideas
 

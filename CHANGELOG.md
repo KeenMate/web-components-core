@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc04] - 2026-08-09
+
 ### Added
 
 - **Environment detection** (`src/environment/`, SPEC §12.9): a zero-dep,
@@ -32,6 +34,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   move re-subscribes; an orientation flip re-fires). Motivating case: a component
   can flip to a fullscreen presentation on touch-primary devices instead of a
   focus-stealing floating panel.
+- Logging: `setLogPersistKeyPrefix` / `getLogPersistKeyPrefix` and a `LOG_LEVELS`
+  export (with a `LogLevelName` type) for the vendored engine — the persisted
+  per-logger level key is namespaced (`km-log:…`) instead of `loglevel`'s bare
+  global key.
+
+### Changed
+
+- **Logging engine vendored — `loglevel` is no longer a runtime dependency**
+  (`src/logging/log-core.ts`). `@keenmate/web-components-core` now ships with a
+  single runtime dependency (`@floating-ui/dom`, used only by `/positioning`);
+  consumers no longer pull `loglevel` transitively. `loglevel` is CommonJS and its
+  ESM interop for `log.levels` was awkward under the package's `Bundler`
+  resolution + `verbatimModuleSyntax`; the vendored engine preserves named
+  loggers, per-level gating, and the ordering-safe `%c` colour prefix. No API
+  change to `createLoggers()` / `createPerfLogger()`.
 
 ## [1.0.0-rc03] - 2026-08-04
 
