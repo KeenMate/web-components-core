@@ -59,6 +59,13 @@ export type {
   BreakpointMap,
 } from './environment/environment.js';
 
+// Overlay / fullscreen presentation primitives (SPEC §12.9) — shared by any
+// component that swaps a floating panel for a full-viewport sheet on phones.
+export { resolveMobilePresentation, TABLET_MIN_SHORT_SIDE } from './overlay/presentation.js';
+export type { MobilePresentation, ResolvedPresentation } from './overlay/presentation.js';
+export { lockBodyScroll } from './overlay/scroll-lock.js';
+export { observeKeyboardInset } from './overlay/keyboard-inset.js';
+
 // Logging (SPEC §12.1) — engine is vendored (no `loglevel` dependency); see log-core.ts.
 export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';
 export type { LoggerBundle, Logger, LogLevelDesc, InstanceLogger } from './logging/create-loggers.js';
