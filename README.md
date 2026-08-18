@@ -10,6 +10,27 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc05
+
+- **Overlay / fullscreen presentation primitives (`src/overlay/`).** The shared
+  "swap the floating panel for a full-viewport sheet on phones" convention now
+  lives in core, so a multiselect and a daterangepicker can't disagree on what a
+  phone is. **`resolveMobilePresentation(mode, env)`** is the pure decision
+  function: `'auto'` resolves to `fullscreen` only when the device is
+  touch-primary **and** its shorter viewport side is under the tablet boundary
+  (`TABLET_MIN_SHORT_SIDE`, 600 CSS px) — orientation-robust, so a wide landscape
+  phone still gets the sheet.
+- **`lockBodyScroll()` — ref-counted page-scroll lock.** Hides `document.body`
+  overflow behind an overlay and restores it only when the last lock releases;
+  safe with several overlays open, SSR-safe, idempotent release.
+- **`observeKeyboardInset(panel)` — keep a fullscreen sheet above the soft
+  keyboard.** Tracks `window.visualViewport` so a `fixed` flex-column panel
+  reflows into the visible area instead of hiding its list behind the on-screen
+  keyboard on iOS Safari / Android Chrome. No-op where `visualViewport` is
+  unavailable.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc04
 
 - **Environment detection — device, viewport, and orientation as one reactive

@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc05] - 2026-08-18
+
+### Added
+
+- **Overlay / fullscreen presentation primitives** (`src/overlay/`, SPEC §12.9):
+  the shared presentation convention §12.9 deferred to the daterangepicker PR,
+  now in core so every KM component agrees on what "a phone" is and how a
+  fullscreen sheet behaves.
+  - **`resolveMobilePresentation(mode, env)`** — a pure, DOM-free function
+    mapping a `mobile-presentation` setting (`'auto' | 'floating' | 'fullscreen'`)
+    against an `EnvironmentSnapshot` to a concrete `'floating' | 'fullscreen'`.
+    `floating`/`fullscreen` are forced; `auto` is the reactive rule — fullscreen
+    when the device is touch-primary **and** its *shorter* viewport side is below
+    the tablet boundary (orientation-robust, so a landscape phone still reads as a
+    phone). Exposes `TABLET_MIN_SHORT_SIDE` (600 CSS px, the Material `sw600dp`
+    line) as the single tunable knob, plus the `MobilePresentation` /
+    `ResolvedPresentation` types. Feeds a component's `environmentChanged()` hook.
+  - **`lockBodyScroll()`** — a ref-counted `document.body` overflow lock returning
+    a release function. The first lock stashes and hides `overflow`; the last
+    release restores it, so several overlays open at once stay correct and a
+    nested lock never clobbers the original value. SSR-safe (no-op release
+    without `document`); the returned release is idempotent.
+  - **`observeKeyboardInset(panel)`** — pins a `position: fixed` fullscreen sheet
+    above the soft keyboard by tracking `window.visualViewport` (writing inline
+    `height`/`top`, coalesced to one write per frame). On iOS Safari and Android
+    Chrome the keyboard overlays the layout viewport (`dvh` unchanged), so a flex
+    column reflows to the visible area instead of hiding its list behind the
+    keyboard. SSR-safe / no-op where `visualViewport` is unavailable; cleanup
+    detaches the listeners and clears the inline styles.
+
 ## [1.0.0-rc04] - 2026-08-09
 
 ### Added
