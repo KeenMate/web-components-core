@@ -10,6 +10,19 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc06
+
+- **Writing-direction (RTL) support in `BlissElement`.** The base now always
+  observes the global `dir` attribute and routes a runtime change to a new opt-in
+  **`directionChanged(isRTL)`** hook — the RTL analogue of `environmentChanged` —
+  so a component can re-mirror its live DOM on an app-wide RTL/LTR switch without
+  a rebuild. A protected **`isRTL`** getter resolves the *effective* CSS
+  `direction` (accounting for `dir` on the element, an ancestor, `<html>`, or a
+  CSS rule). No-op by default: components that don't override the hook are
+  unaffected, beyond `observedAttributes` now including `dir`.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc05
 
 - **Overlay / fullscreen presentation primitives (`src/overlay/`).** The shared
