@@ -24,7 +24,7 @@ describe('SSR (no DOM present)', () => {
   it('constructs and seeds converter defaults without a DOM', () => {
     const el = new SsrElement();
     expect(el.read()).toEqual({ mode: 'a', size: 10 });
-    expect(SsrElement.observedAttributes).toEqual(['mode', 'size']);
+    expect(SsrElement.observedAttributes).toEqual(['mode', 'size', 'dir']);
   });
 
   it('define() is a no-op (does not throw) when customElements is absent', () => {

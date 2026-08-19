@@ -53,7 +53,11 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   protected static events?: readonly (string | EventDef)[];
 
   static get observedAttributes(): string[] {
-    return (this.inputs ?? []).filter((d) => d.attribute).map((d) => d.attribute!);
+    const attrs = (this.inputs ?? []).filter((d) => d.attribute).map((d) => d.attribute!);
+    // Always observe the global `dir` attribute (never an input) so a runtime
+    // writing-direction switch reaches the directionChanged() hook. Deduped in case
+    // a subclass ever declares a `dir` input attribute.
+    return attrs.includes('dir') ? attrs : [...attrs, 'dir'];
   }
 
   readonly #config: Record<string, unknown> = {};
@@ -106,6 +110,16 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
 
   attributeChangedCallback(name: string, _old: string | null, raw: string | null): void {
     if (this.#reflecting) return;
+    // Global `dir` is observed for every component (not an input). Route runtime
+    // changes to the directionChanged() hook — but only post-connect: the initial
+    // attribute is consumed by the first build, and firing before connect would
+    // hit a not-yet-built component. Skip this when a subclass has (unusually)
+    // declared `dir` as its own input attribute — then it takes the normal input
+    // path below, matching the dedup in observedAttributes.
+    if (name === 'dir' && !this.#byAttribute.has('dir')) {
+      if (this.#connectedOnce) this.directionChanged(this.isRTL);
+      return;
+    }
     const def = this.#byAttribute.get(name);
     if (!def) return;
     // A property assigned before upgrade wins over the initial attribute the
@@ -303,6 +317,32 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    * `reinit()`/`connect()`, call `getEnvironment()` instead.
    */
   protected environmentChanged(_env: EnvironmentSnapshot): void {
+    /* opt-in */
+  }
+
+  /**
+   * Whether the element currently resolves to right-to-left. Reads the effective
+   * CSS `direction`, so it accounts for `dir` on the element, an ancestor, `<html>`,
+   * or a CSS `direction` rule — not just this element's own `dir` attribute.
+   * Meaningful only while connected (falls back to `false` under SSR / detached).
+   */
+  protected get isRTL(): boolean {
+    return typeof getComputedStyle === 'function' && getComputedStyle(this).direction === 'rtl';
+  }
+
+  /**
+   * React to a runtime writing-direction change. The base observes the global
+   * `dir` attribute on every component; override this hook to re-mirror live DOM
+   * when direction flips (an app-wide RTL/LTR switch) WITHOUT a rebuild — the
+   * cheaper counterpart to reading direction once during {@link reinit}. Called
+   * with the freshly-resolved {@link isRTL}, only for post-connect changes (the
+   * initial direction is read by the first build). No-op by default.
+   *
+   * Note: this fires for `dir` changes on the element itself. A direction change
+   * made only on an ancestor (e.g. `<html dir>`) does not trigger it — set/update
+   * `dir` on the element, or rebuild, for that case.
+   */
+  protected directionChanged(_isRTL: boolean): void {
     /* opt-in */
   }
 

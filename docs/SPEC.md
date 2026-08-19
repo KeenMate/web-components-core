@@ -217,6 +217,12 @@ export abstract class BlissElement extends Base {
   protected connect(): void { /* opt-in, no-op by default */ }
   /** Stop what connect() started. Every disconnect. Shadow DOM persists — don't tear down structure. */
   protected disconnect(): void { /* opt-in, no-op by default */ }
+
+  // DIRECTION: `dir` is always observed (a global attribute, never an input).
+  /** Effective writing direction is RTL (resolves CSS `direction`: element, ancestor, <html>, or a rule). */
+  protected get isRTL(): boolean { /* … */ }
+  /** Runtime `dir` change on the element (post-connect only). Re-mirror live DOM without a rebuild. */
+  protected directionChanged(isRTL: boolean): void { /* opt-in, no-op by default */ }
 }
 ```
 

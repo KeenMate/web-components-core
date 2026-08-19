@@ -23,6 +23,10 @@ class TestElement extends BlissElement {
   disconnects = 0;
   readonly updates: Record<string, unknown>[] = [];
   readonly events: string[] = [];
+  readonly dirChanges: boolean[] = [];
+  protected override directionChanged(isRTL: boolean): void {
+    this.dirChanges.push(isRTL);
+  }
   protected override reinit(): void {
     this.reinits += 1;
     this.events.push('reinit');
@@ -104,6 +108,26 @@ class ReflectElement extends BlissElement {
 }
 define('reflect-element', ReflectElement as unknown as CustomElementConstructor);
 
+// Unusual: a subclass that claims `dir` as its own input attribute. It must take
+// the normal parse/stage/react path — NOT the always-observed directionChanged hook.
+class DirInputElement extends BlissElement {
+  protected static override inputs: readonly InputDef[] = [
+    { configKey: 'dir', attribute: 'dir', converter: toText({ default: '' }), on: 'update' },
+  ];
+  readonly updates: Record<string, unknown>[] = [];
+  readonly dirChanges: boolean[] = [];
+  protected override update(partial: Record<string, unknown>): void {
+    this.updates.push(partial);
+  }
+  protected override directionChanged(isRTL: boolean): void {
+    this.dirChanges.push(isRTL);
+  }
+  peek(): Readonly<Record<string, unknown>> {
+    return this.config;
+  }
+}
+define('dir-input-element', DirInputElement as unknown as CustomElementConstructor);
+
 const tick = (): Promise<void> => new Promise((r) => queueMicrotask(() => r()));
 
 afterEach(() => {
@@ -111,7 +135,7 @@ afterEach(() => {
 });
 
 describe('BlissElement', () => {
-  it('derives observedAttributes from the table (property-only inputs excluded)', () => {
+  it('derives observedAttributes from the table (property-only inputs excluded), plus the always-observed dir', () => {
     expect(TestElement.observedAttributes).toEqual([
       'selection-mode',
       'option-height',
@@ -119,7 +143,40 @@ describe('BlissElement', () => {
       'disabled',
       'internal-id',
       'note',
+      'dir',
     ]);
+  });
+
+  it('fires directionChanged on a post-connect dir change, not on the initial attribute', async () => {
+    const el = document.createElement('test-element') as TestElement;
+    // Initial `dir` set before connect is consumed by the first build — no hook.
+    el.setAttribute('dir', 'rtl');
+    document.body.appendChild(el);
+    await tick();
+    expect(el.dirChanges).toEqual([]);
+
+    // Post-connect changes fire the hook once each.
+    el.setAttribute('dir', 'ltr');
+    expect(el.dirChanges.length).toBe(1);
+    el.setAttribute('dir', 'rtl');
+    expect(el.dirChanges.length).toBe(2);
+    expect(typeof el.dirChanges[0]).toBe('boolean');
+  });
+
+  it('routes dir through the input pipeline (not directionChanged) when declared as an input attribute', async () => {
+    // `dir` listed once (deduped), not appended a second time.
+    expect(DirInputElement.observedAttributes).toEqual(['dir']);
+
+    const el = document.createElement('dir-input-element') as DirInputElement;
+    document.body.appendChild(el);
+    await tick();
+
+    el.setAttribute('dir', 'rtl');
+    await tick();
+    // The declared input wins: config updated, update() called, hook NOT fired.
+    expect(el.peek().dir).toBe('rtl');
+    expect(el.updates).toEqual([{ dir: 'rtl' }]);
+    expect(el.dirChanges).toEqual([]);
   });
 
   it('seeds converter defaults into config at construction', () => {

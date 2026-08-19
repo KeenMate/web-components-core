@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Writing-direction (RTL) support in `BlissElement`.** The base now always observes
+  the global `dir` attribute (in addition to the input-derived ones) and routes a
+  runtime change to a new opt-in **`directionChanged(isRTL)`** hook — the RTL analogue
+  of `environmentChanged`, letting a component re-mirror its live DOM on an app-wide
+  RTL/LTR switch without a rebuild. Fires only for post-connect `dir` changes on the
+  element itself (the initial direction is read by the first build; an ancestor-only
+  `dir` flip isn't observed). Also adds a protected **`isRTL`** getter that resolves the
+  effective CSS `direction` (accounting for `dir` on the element, an ancestor, `<html>`,
+  or a CSS rule). No-op by default, so components that don't override the hook are
+  unaffected beyond `observedAttributes` now including `dir`.
+
 ## [1.0.0-rc05] - 2026-08-18
 
 ### Added
