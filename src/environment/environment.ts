@@ -325,6 +325,52 @@ export function configureBreakpoints(map: BreakpointMap): void {
   if (subscribers.size > 0) recompute();
 }
 
+// ── device classification (capability, not width) ──────────────────────────
+
+/**
+ * A device's coarse class, derived from **capability + physical size**, NOT the
+ * viewport-width {@link EnvironmentSnapshot.breakpoint}. The two axes differ on
+ * purpose: `breakpoint` answers "how wide is the window" (a narrowed desktop is
+ * `mobile`); `deviceClass` answers "what kind of device is this" (a narrowed
+ * desktop stays `desktop`, a landscape iPad stays `tablet`). This is the axis to
+ * key mobile/tablet UX off — it's the one every KM component must agree on.
+ */
+export type DeviceClass = 'mobile' | 'tablet' | 'desktop';
+
+/**
+ * The phone/tablet boundary, in **CSS px** (not inches), applied to the *shorter*
+ * viewport side. This is the Material `sw600dp` line — "smallest width ≥ 600dp ⇒
+ * tablet" — and it's the orientation-robust test we want: a device's shorter side
+ * stays constant across rotation, so a phone reads as a phone in landscape too.
+ *
+ * Why 600, against the 2026 CSS-width map (physical ÷ DPR, what media queries see —
+ * inches lie): phones lay out at ~320–360 (compact), ~390–393 (mainstream), and up
+ * to ~430 CSS px, with ~480 as the large-phone/Pro-Max stress point. 7" tablets
+ * start ~600, iPad mini ~768, and folds *open* jump to ~700+. So 480→600 is an
+ * empty band with no phones in it — `< 600` catches every phone (comfortable
+ * headroom over ~480) while handing tablets and opened foldables to the tablet
+ * class. A hard constant on purpose: the whole point is that "what is a phone"
+ * can't drift per app.
+ */
+export const TABLET_MIN_SHORT_SIDE = 600;
+
+/**
+ * Classify the device from the live environment (SPEC §12.9). Capability decides
+ * first — a non-`isTouchPrimary` device is always `desktop`, at any window width,
+ * so a shrunk desktop window keeps its `desktop` class (and a floating dropdown,
+ * not a fullscreen sheet). Only touch-primary devices consult the size line: the
+ * shorter viewport side below {@link TABLET_MIN_SHORT_SIDE} ⇒ `mobile`, else
+ * `tablet` (orientation-robust — a landscape phone still reads as `mobile`).
+ *
+ * This is the shared *classification*; how each class maps to a presentation is a
+ * component decision (see `resolvePresentation`).
+ */
+export function classifyDevice(env: EnvironmentSnapshot): DeviceClass {
+  if (!env.isTouchPrimary) return 'desktop';
+  const shortSide = Math.min(env.viewportWidth, env.viewportHeight);
+  return shortSide < TABLET_MIN_SHORT_SIDE ? 'mobile' : 'tablet';
+}
+
 /** Test-only: detach listeners and reset breakpoints + cache to defaults. */
 export function __resetEnvironment(): void {
   subscribers.clear();

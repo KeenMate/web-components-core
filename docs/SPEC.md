@@ -756,6 +756,57 @@ via an override check so non-overriding elements attach NO global listeners). It
 fires once immediately with the current snapshot on connect, then on every change
 — a DOM move re-subscribes, an orientation flip re-fires. Components resolve their
 own presentation from it (e.g. daterangepicker: `presentation: 'auto'` →
-fullscreen when `env.isTouchPrimary`). The shared `resolvePresentation`-style
-convention was deferred to the daterangepicker PR — core ships the primitive +
-hook only.
+fullscreen when `env.isTouchPrimary`).
+
+**Classification vs presentation — two functions, split on purpose (rc07).** The
+"what should this component show" decision is split into a shared *fact* and a
+per-component *policy*:
+
+- **`classifyDevice(env) → 'mobile' | 'tablet' | 'desktop'`** (`src/environment/`)
+  is the shared classification every KM component must agree on. **Capability
+  decides first:** a non-`isTouchPrimary` device is always `desktop`, at *any*
+  window width — so a *narrowed desktop window* keeps a floating dropdown, never a
+  fullscreen sheet. Only touch-primary devices consult the size line: shorter
+  viewport side below `TABLET_MIN_SHORT_SIDE` (600, the Material `sw600dp` line) ⇒
+  `mobile`, else `tablet`. This is a **distinct axis** from the width-only
+  `EnvironmentSnapshot.breakpoint` (a landscape iPad is `breakpoint: 'desktop'` yet
+  `deviceClass: 'tablet'`); `deviceClass` is the one to key mobile/tablet UX off.
+  The 600 line is a hard constant on purpose — it can't drift per app.
+- **`resolvePresentation(mode, env, map?) → 'floating' | 'modal' | 'fullscreen'`**
+  (`src/overlay/`) owns the *policy*, which legitimately differs per component (a
+  multiselect wants a floating panel on a tablet; a calendar may want a centered
+  modal). `auto` classifies the device and looks the class up in `map`, falling
+  back per-class to `DEFAULT_PRESENTATION_MAP` (`mobile: 'fullscreen'`, `tablet`/
+  `desktop: 'floating'` — what every overlay component does today); a forced mode
+  is returned as-is. A component passes only the classes it overrides, e.g.
+  `{ tablet: 'modal' }`. The earlier binary `resolveMobilePresentation` is a
+  deprecated wrapper (default map; never `modal`), removed at 1.0.
+
+**Escape hatch — width (or anything) *within* a class.** The `map` is keyed by
+`DeviceClass` only, so it can't express "desktop, but under 800px show a modal" (a
+desktop is one class at any width). That's deliberate: `classifyDevice` owns the
+*shared* boundary (the 600px line no app should redefine), while a per-component
+rule *finer* than the class is the component's own logic, not core's. A component
+that needs it stops calling `resolvePresentation` and composes directly — it
+already holds the snapshot via `environmentChanged(env)` / `getEnvironment()`, so
+`env.viewportWidth` is the current width:
+
+```ts
+protected environmentChanged(env: EnvironmentSnapshot) {
+  if (this.mode !== 'auto') return this.render(this.mode);   // author forced it
+  const cls = classifyDevice(env);                            // shared classification
+  const p =
+    cls === 'mobile'             ? 'fullscreen' :
+    cls === 'tablet'             ? 'modal' :
+    env.viewportWidth < 800      ? 'modal'      :             // desktop, narrow
+                                   'floating';                // desktop, wide
+  this.render(p);
+}
+```
+
+Rule of thumb: **class-only policy → `resolvePresentation(mode, env, map)`;
+width-aware (or any snapshot field) → `classifyDevice(env)` + your own branch.**
+
+Overlay runtime helpers for the fullscreen tier: `lockBodyScroll()` (ref-counted
+body-scroll lock) and `observeKeyboardInset(panel)` (pin a fixed sheet above the
+soft keyboard via `visualViewport`).

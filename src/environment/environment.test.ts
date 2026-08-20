@@ -1,9 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   __resetEnvironment,
+  classifyDevice,
   configureBreakpoints,
   getEnvironment,
   observeEnvironment,
+  TABLET_MIN_SHORT_SIDE,
+  type EnvironmentSnapshot,
 } from './environment.js';
 
 // jsdom has no matchMedia and no layout — drive both with a controllable mock.
@@ -272,5 +275,46 @@ describe('SSR / no matchMedia', () => {
     const unsub = observeEnvironment(cb);
     expect(cb).toHaveBeenCalledTimes(1);
     expect(() => unsub()).not.toThrow();
+  });
+});
+
+describe('classifyDevice', () => {
+  // Pure function over a snapshot — build snapshots directly (no matchMedia needed).
+  const snap = (over: Partial<EnvironmentSnapshot>): EnvironmentSnapshot => ({
+    pointer: 'fine',
+    hasCoarsePointer: false,
+    canHover: true,
+    isTouchPrimary: false,
+    orientation: 'landscape',
+    viewportWidth: 1440,
+    viewportHeight: 900,
+    breakpoint: 'desktop',
+    os: 'unknown',
+    isApple: false,
+    isAndroid: false,
+    ...over,
+  });
+
+  it('classifies by capability first: any non-touch-primary device is desktop, at any width', () => {
+    expect(classifyDevice(snap({ isTouchPrimary: false, viewportWidth: 1440 }))).toBe('desktop');
+    // A narrowed desktop window (< 600) stays desktop — the motivating scenario.
+    expect(classifyDevice(snap({ isTouchPrimary: false, viewportWidth: 480, viewportHeight: 800 }))).toBe('desktop');
+  });
+
+  it('touch-primary + short side < 600 ⇒ mobile (orientation-robust)', () => {
+    expect(classifyDevice(snap({ isTouchPrimary: true, viewportWidth: 390, viewportHeight: 844 }))).toBe('mobile');
+    // Landscape phone: wide, but short side still 390.
+    expect(classifyDevice(snap({ isTouchPrimary: true, viewportWidth: 844, viewportHeight: 390 }))).toBe('mobile');
+  });
+
+  it('touch-primary + short side ≥ 600 ⇒ tablet', () => {
+    expect(classifyDevice(snap({ isTouchPrimary: true, viewportWidth: 768, viewportHeight: 1024 }))).toBe('tablet');
+  });
+
+  it('the 600 boundary is inclusive-tablet (< 600 mobile, == 600 tablet)', () => {
+    const under = snap({ isTouchPrimary: true, viewportWidth: 900, viewportHeight: TABLET_MIN_SHORT_SIDE - 1 });
+    const at = snap({ isTouchPrimary: true, viewportWidth: 900, viewportHeight: TABLET_MIN_SHORT_SIDE });
+    expect(classifyDevice(under)).toBe('mobile');
+    expect(classifyDevice(at)).toBe('tablet');
   });
 });

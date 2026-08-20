@@ -48,7 +48,13 @@ export { extractConsumedCssVars, declaredCssVars, suggestCssVars, lintCssVars } 
 export type { CssVarFinding } from './dom/css-var-lint.js';
 
 // Device / viewport / orientation detection (SPEC §12.9)
-export { getEnvironment, observeEnvironment, configureBreakpoints } from './environment/environment.js';
+export {
+  getEnvironment,
+  observeEnvironment,
+  configureBreakpoints,
+  classifyDevice,
+  TABLET_MIN_SHORT_SIDE,
+} from './environment/environment.js';
 export type {
   EnvironmentSnapshot,
   EnvironmentListener,
@@ -57,12 +63,15 @@ export type {
   Orientation,
   OS,
   BreakpointMap,
+  DeviceClass,
 } from './environment/environment.js';
 
 // Overlay / fullscreen presentation primitives (SPEC §12.9) — shared by any
 // component that swaps a floating panel for a full-viewport sheet on phones.
-export { resolveMobilePresentation, TABLET_MIN_SHORT_SIDE } from './overlay/presentation.js';
-export type { MobilePresentation, ResolvedPresentation } from './overlay/presentation.js';
+// classifyDevice() owns the shared device classification; resolvePresentation()
+// owns the (per-component overridable) class→presentation policy.
+export { resolvePresentation, resolveMobilePresentation, DEFAULT_PRESENTATION_MAP } from './overlay/presentation.js';
+export type { MobilePresentation, ResolvedPresentation, PresentationMap } from './overlay/presentation.js';
 export { lockBodyScroll } from './overlay/scroll-lock.js';
 export { observeKeyboardInset } from './overlay/keyboard-inset.js';
 

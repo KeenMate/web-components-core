@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { EnvironmentSnapshot } from '../environment/environment.js';
-import { resolveMobilePresentation, TABLET_MIN_SHORT_SIDE } from './presentation.js';
+import {
+  resolveMobilePresentation,
+  resolvePresentation,
+  DEFAULT_PRESENTATION_MAP,
+  TABLET_MIN_SHORT_SIDE,
+} from './presentation.js';
 
 /**
  * The `mobile-presentation` resolver maps the author setting + the live
@@ -90,5 +95,34 @@ describe('resolveMobilePresentation', () => {
       expect(resolveMobilePresentation('fullscreen', tablet)).toBe('fullscreen');
       expect(resolveMobilePresentation('fullscreen', desktop)).toBe('fullscreen');
     });
+  });
+});
+
+describe('resolvePresentation', () => {
+  it('default map == the deprecated binary wrapper (fullscreen phone, floating otherwise)', () => {
+    expect(DEFAULT_PRESENTATION_MAP).toEqual({ mobile: 'fullscreen', tablet: 'floating', desktop: 'floating' });
+    expect(resolvePresentation('auto', phonePortrait)).toBe('fullscreen');
+    expect(resolvePresentation('auto', tablet)).toBe('floating');
+    expect(resolvePresentation('auto', desktop)).toBe('floating');
+  });
+
+  it('a narrowed desktop window stays floating (capability-gated, never fullscreen)', () => {
+    // The scenario that motivated the split: desktop machine, window < 600px wide.
+    const narrowDesktop = env({ isTouchPrimary: false, viewportWidth: 480, viewportHeight: 800 });
+    expect(resolvePresentation('auto', narrowDesktop)).toBe('floating');
+  });
+
+  it('per-class override changes only that class (tablet → modal keeps phone/desktop)', () => {
+    const map = { tablet: 'modal' } as const;
+    expect(resolvePresentation('auto', tablet, map)).toBe('modal');
+    expect(resolvePresentation('auto', phonePortrait, map)).toBe('fullscreen'); // default
+    expect(resolvePresentation('auto', desktop, map)).toBe('floating'); // default
+  });
+
+  it('a forced mode is returned as-is, including modal, on any device', () => {
+    expect(resolvePresentation('modal', desktop)).toBe('modal');
+    expect(resolvePresentation('modal', phonePortrait)).toBe('modal');
+    expect(resolvePresentation('floating', phonePortrait)).toBe('floating');
+    expect(resolvePresentation('fullscreen', desktop)).toBe('fullscreen');
   });
 });

@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`classifyDevice(env)` — shared, capability-based device classification**
+  (`src/environment/`, SPEC §12.9). Returns `'mobile' | 'tablet' | 'desktop'`
+  (`DeviceClass`) from the live environment: capability decides first (a
+  non-`isTouchPrimary` device is always `desktop`, at *any* window width — so a
+  narrowed desktop window keeps a floating dropdown, never a fullscreen sheet),
+  and only touch-primary devices consult the size line (shorter viewport side
+  below `TABLET_MIN_SHORT_SIDE` (600) ⇒ `mobile`, else `tablet`). This is a
+  distinct axis from the width-only `EnvironmentSnapshot.breakpoint`; it's the one
+  every KM component must agree on. `TABLET_MIN_SHORT_SIDE` now lives in
+  `src/environment/` (still re-exported from the overlay module for its historical
+  import path).
+- **`resolvePresentation(mode, env, map?)` — overridable class→presentation policy**
+  (`src/overlay/`). Splits the *policy* (which presentation a class gets) from the
+  *classification* (`classifyDevice`), because it legitimately differs per
+  component. `auto` classifies the device and looks it up in `map`, falling back
+  per-class to `DEFAULT_PRESENTATION_MAP` (`{ mobile: 'fullscreen', tablet:
+  'floating', desktop: 'floating' }`); a forced mode is returned as-is. Pass only
+  the classes you override — e.g. `{ tablet: 'modal' }`. `MobilePresentation` /
+  `ResolvedPresentation` gain a **`modal`** tier, and `PresentationMap` /
+  `DEFAULT_PRESENTATION_MAP` are exported.
+
+### Deprecated
+
+- **`resolveMobilePresentation(mode, env)`** is deprecated in favour of
+  `resolvePresentation` (+ `classifyDevice`). It's kept as a thin wrapper with its
+  original binary `'floating' | 'fullscreen'` signature (equivalent to
+  `resolvePresentation` with the default map; never returns `modal`), so rc06
+  consumers are unaffected. To be removed at 1.0.
+
 ## [1.0.0-rc06] - 2026-08-19
 
 ### Added

@@ -195,6 +195,64 @@ before reading rendered state — use **`await el.whenSettled()`**: it resolves
 once every staged change has flushed and its `reinit()`/`update()` has run
 (immediately when nothing is pending).
 
+## Environment & presentation (device / viewport / orientation)
+
+Components that swap a floating panel for a fullscreen sheet (or a modal) on
+smaller devices share one signal instead of each re-deriving "what is a phone."
+
+**React to the device** by overriding `environmentChanged(env)` — the base
+subscribes on connect and unsubscribes on disconnect (no listeners unless you
+override it), fires immediately with the current snapshot, then on every
+pointer / hover / orientation / viewport change. For a one-off synchronous read,
+call `getEnvironment()`.
+
+**Classify, then present — two separate concerns:**
+
+- **`classifyDevice(env)` → `'mobile' | 'tablet' | 'desktop'`** is the *shared*
+  classification every component must agree on. **Capability decides first:** a
+  non-touch device is always `desktop` at *any* width — so a **narrowed desktop
+  window keeps its floating dropdown, never a fullscreen sheet**. Only touch
+  devices consult the 600px short-side line (`mobile` below it, `tablet` at/above).
+  This is a different axis from the width-only `env.breakpoint` (a landscape iPad
+  is `breakpoint: 'desktop'` yet `deviceClass: 'tablet'`).
+- **`resolvePresentation(mode, env, map?)` → `'floating' | 'modal' | 'fullscreen'`**
+  is the *per-component policy*. `mode` is the author setting (`'auto'` |
+  `'floating'` | `'modal'` | `'fullscreen'`); a forced value wins, and `'auto'`
+  classifies the device and looks it up in `map`, falling back per-class to
+  `DEFAULT_PRESENTATION_MAP` (`mobile → fullscreen`, tablet/desktop → `floating`).
+  You list only the classes you change:
+
+```ts
+protected override environmentChanged(env: EnvironmentSnapshot) {
+  // "on a tablet, use a modal" — phone & desktop keep the defaults:
+  this.setPresentation(resolvePresentation(this.mode, env, { tablet: 'modal' }));
+}
+```
+
+**Need a rule *finer* than the class** — e.g. "desktop, but under 800px show a
+modal"? The `map` is class-keyed, so drop to `classifyDevice(env)` and read the
+current width off the snapshot yourself (`env.viewportWidth`):
+
+```ts
+protected override environmentChanged(env: EnvironmentSnapshot) {
+  if (this.mode !== 'auto') return this.setPresentation(this.mode);
+  const cls = classifyDevice(env);
+  this.setPresentation(
+    cls === 'mobile'        ? 'fullscreen' :
+    cls === 'tablet'        ? 'modal'      :
+    env.viewportWidth < 800 ? 'modal'      :   // desktop, narrow
+                              'floating',      // desktop, wide
+  );
+}
+```
+
+Rule of thumb: **class-only policy → `resolvePresentation(mode, env, map)`;
+width-aware → `classifyDevice(env)` + your own branch.** For the fullscreen tier,
+`lockBodyScroll()` and `observeKeyboardInset(panel)` handle page-scroll locking
+and keeping the sheet above the soft keyboard. See [SPEC §12.9](docs/SPEC.md) for
+the full rationale (why 600px, capability over width, the deprecated
+`resolveMobilePresentation`).
+
 ## Global registration (`window.components`)
 
 `registerComponent` replaces the block every component used to copy-paste (and
