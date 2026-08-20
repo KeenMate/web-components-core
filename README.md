@@ -10,6 +10,27 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc07
+
+- **Device classification split from presentation policy.** A new
+  **`classifyDevice(env)`** returns `'mobile' | 'tablet' | 'desktop'` — the
+  *shared* classification every KM component agrees on. It's **capability-first**:
+  a non-touch device is always `desktop` at any width, so a *narrowed desktop
+  window keeps its floating dropdown, never a fullscreen sheet*; only touch
+  devices consult the 600px short-side line. A distinct axis from the width-only
+  `env.breakpoint`.
+- **`resolvePresentation(mode, env, map?)` → `'floating' | 'modal' | 'fullscreen'`.**
+  The per-component *policy*, now with a **`modal`** tier. `auto` classifies the
+  device and looks it up in `map` (defaulting per-class to `mobile → fullscreen`,
+  else `floating`); list only the classes you override, e.g. `{ tablet: 'modal' }`.
+  For a rule finer than the class (e.g. "desktop under 800px → modal"), drop to
+  `classifyDevice(env)` + `env.viewportWidth`. See the new **Environment &
+  presentation** section below.
+- **`resolveMobilePresentation` is deprecated** in favour of the above (kept as a
+  binary `'floating' | 'fullscreen'` wrapper, unchanged output, removed at 1.0).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc06
 
 - **Writing-direction (RTL) support in `BlissElement`.** The base now always
