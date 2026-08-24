@@ -59,6 +59,36 @@ export function resolvePresentation(
 }
 
 /**
+ * The presentation flags a component surfaces into its render-callback context, so a
+ * custom renderer can adapt content to how the panel is currently shown — e.g. rich rows
+ * on the desktop floating panel and a leaner variant in the phone fullscreen sheet. Built
+ * from the {@link ResolvedPresentation} a component is rendering in (its `setPresentation`
+ * value); spread into the per-item context handed to the consumer's callback.
+ */
+export interface PresentationContext {
+  /** The concrete presentation the panel is rendering in. */
+  presentation: ResolvedPresentation;
+  /** Convenience for `presentation === 'fullscreen'` (the phone overlay sheet). */
+  isFullscreen: boolean;
+  /** Convenience for `presentation === 'modal'` (a centered modal, for components that use it). */
+  isModal: boolean;
+}
+
+/**
+ * Build the {@link PresentationContext} flags from a resolved presentation. A tiny shared
+ * helper so every KM component surfaces the same shape into its render callbacks instead of
+ * re-deriving the booleans. Reactive by construction: call it wherever you build the render
+ * context and it reflects the component's current presentation.
+ */
+export function presentationContext(presentation: ResolvedPresentation): PresentationContext {
+  return {
+    presentation,
+    isFullscreen: presentation === 'fullscreen',
+    isModal: presentation === 'modal',
+  };
+}
+
+/**
  * @deprecated since 1.0.0-rc07 — use {@link resolvePresentation} (with
  * {@link classifyDevice}). This binary form is kept for the rc06 consumers and
  * will be removed at 1.0. Equivalent to `resolvePresentation` with the default

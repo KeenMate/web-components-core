@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`presentationContext(presentation)` + `PresentationContext` — shared render-context
+  presentation flags** (`src/overlay/presentation.ts`). Builds `{ presentation, isFullscreen,
+  isModal }` from a `ResolvedPresentation` so every component surfaces the *same* shape into
+  its render callbacks (letting a custom renderer show rich content on the desktop floating
+  panel and a leaner variant in the phone fullscreen sheet) instead of each re-deriving the
+  booleans. Spread it into the per-item context handed to a consumer's callback; it reflects
+  whatever the component's current `setPresentation` value is.
+
 ## [1.0.0-rc07] - 2026-08-20
 
 ### Added
