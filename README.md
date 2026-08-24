@@ -10,6 +10,18 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc08
+
+- **`presentationContext(presentation)` — shared render-context presentation flags.**
+  A tiny helper that builds `{ presentation, isFullscreen, isModal }` from a
+  `ResolvedPresentation`, so every KM component surfaces the *same* shape into its
+  render callbacks instead of re-deriving the booleans. A custom renderer can then
+  show rich content on the desktop floating panel and a leaner variant in the phone
+  fullscreen sheet. Spread it into the per-item context you hand a consumer's
+  callback; it reflects whatever the component's current presentation is.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc07
 
 - **Device classification split from presentation policy.** A new
@@ -28,89 +40,6 @@ that correctness lives in a single place and can't drift.
   presentation** section below.
 - **`resolveMobilePresentation` is deprecated** in favour of the above (kept as a
   binary `'floating' | 'fullscreen'` wrapper, unchanged output, removed at 1.0).
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc06
-
-- **Writing-direction (RTL) support in `BlissElement`.** The base now always
-  observes the global `dir` attribute and routes a runtime change to a new opt-in
-  **`directionChanged(isRTL)`** hook — the RTL analogue of `environmentChanged` —
-  so a component can re-mirror its live DOM on an app-wide RTL/LTR switch without
-  a rebuild. A protected **`isRTL`** getter resolves the *effective* CSS
-  `direction` (accounting for `dir` on the element, an ancestor, `<html>`, or a
-  CSS rule). No-op by default: components that don't override the hook are
-  unaffected, beyond `observedAttributes` now including `dir`.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc05
-
-- **Overlay / fullscreen presentation primitives (`src/overlay/`).** The shared
-  "swap the floating panel for a full-viewport sheet on phones" convention now
-  lives in core, so a multiselect and a daterangepicker can't disagree on what a
-  phone is. **`resolveMobilePresentation(mode, env)`** is the pure decision
-  function: `'auto'` resolves to `fullscreen` only when the device is
-  touch-primary **and** its shorter viewport side is under the tablet boundary
-  (`TABLET_MIN_SHORT_SIDE`, 600 CSS px) — orientation-robust, so a wide landscape
-  phone still gets the sheet.
-- **`lockBodyScroll()` — ref-counted page-scroll lock.** Hides `document.body`
-  overflow behind an overlay and restores it only when the last lock releases;
-  safe with several overlays open, SSR-safe, idempotent release.
-- **`observeKeyboardInset(panel)` — keep a fullscreen sheet above the soft
-  keyboard.** Tracks `window.visualViewport` so a `fixed` flex-column panel
-  reflows into the visible area instead of hiding its list behind the on-screen
-  keyboard on iOS Safari / Android Chrome. No-op where `visualViewport` is
-  unavailable.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc04
-
-- **Environment detection — device, viewport, and orientation as one reactive
-  signal.** A new zero-dep, SSR-safe `getEnvironment()` / `observeEnvironment()`
-  (plus `configureBreakpoints()`) reports pointer type, hover capability,
-  orientation, viewport size, and the resolved breakpoint — all feature-detected,
-  not UA-sniffed. The load-bearing field is **`isTouchPrimary`** (`coarse &&
-  !hover`): the honest "phone/tablet" signal that stays correct on a wide
-  landscape phone where width alone would say "desktop". A best-effort `os` /
-  `isApple` / `isAndroid` hint covers genuine OS-specific quirks.
-- **`BlissElement.environmentChanged(env)` hook.** Override it to opt an element
-  into the environment observable — the base subscribes on connect and
-  unsubscribes on disconnect (no listeners for elements that don't override), and
-  it re-fires on every change. Lets a component flip to a fullscreen presentation
-  on touch devices instead of a focus-stealing floating panel.
-- **`loglevel` is no longer a runtime dependency.** The logging engine is now
-  vendored, so the package ships with a single runtime dependency
-  (`@floating-ui/dom`, and only when you use `/positioning`). `createLoggers()` is
-  unchanged; the persisted per-logger level key is namespaced (`km-log:…`).
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc03
-
-- **`anchor({ maxWidth })` — cap a floating panel's width to the viewport.** The
-  low-level `anchor()` positioning primitive gains a `maxWidth` option symmetric
-  with `maxHeight`: it caps the floating element's `max-width` to the space
-  available on the resolved side (`true` for no inset, `{ padding }` to inset from
-  the viewport edges), so a user-resizable dropdown/popover can't be dragged past
-  the viewport edge. First consumer: `<web-dropzone>`'s resizable compact-mode
-  popover.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc02
-
-- **Form association — `el.form` for form-associated components.** `BlissElement`
-  now exposes a public `get form()` (plus a protected, lazily-attached `internals`),
-  so a subclass with `static formAssociated = true` reports its owning `<form>` via
-  `el.form` / `event.target.form` exactly like a native control. Custom elements
-  get no `.form` for free — the browser records the association only inside
-  `ElementInternals` — so frameworks that delegate form changes by reading
-  `target.form` (e.g. Phoenix LiveView's `phx-change`) otherwise resolve nothing.
-  `attachInternals()` is called once and memoized, and it degrades to `null` under
-  SSR / older jsdom. This is the base that `web-multiselect` and
-  `web-daterangepicker` build their `<form>` integration on.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
