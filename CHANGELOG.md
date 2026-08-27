@@ -7,6 +7,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc09] - 2026-08-27
+
+### Added
+
+- **`observeViewport(cb)` + `BlissElement.viewportChanged(env)` — a throttled,
+  continuous viewport-size channel** (`src/environment/`, SPEC §12.9). The
+  environment observable now splits by cadence: `environmentChanged` stays the
+  *discrete* channel (fires only on a `breakpoint`/`orientation`/pointer/hover/
+  `isTouchPrimary` flip), while the new `viewportChanged` hook streams raw
+  `viewportWidth`/`viewportHeight` changes **throttled to ~30 ms
+  (`VIEWPORT_THROTTLE_MS`), leading + trailing** — for layouts that reflow
+  *within* a device class (e.g. a desktop window shrinking narrow) without a
+  breakpoint crossing. Both are opt-in (override-gated) and ref-counted over the
+  same shared listeners, so an element that overrides only `environmentChanged`
+  pays zero per-resize cost.
+- **`observeElementSize(el, cb)` + `BlissElement.resized(size)` — per-element size
+  reactivity** (`src/environment/element-size.ts`, SPEC §12.9). The element-box
+  companion to `viewportChanged`: reflow to the component's *own box* (a picker in
+  a narrow sidebar on a wide monitor), not the window. Backed by a **single,
+  shared, page-wide `ResizeObserver`** fanned out per target, so N components pay
+  for one observer. Fires with the real laid-out border box after connect, then on
+  box changes, **throttled to ~30 ms (leading + trailing)** with identical-size
+  dedup; opt-in (override-gated) and SSR-safe. **Prefer CSS container queries**
+  (`container-type: inline-size` + `@container`) for *presentational* reflow —
+  `resized()` is for *structural* reflow that needs a JS decision (a different
+  number of rendered children, a `reinit()` input).
+
+### Changed
+
+- **`environmentChanged` no longer fires on raw viewport-size changes.**
+  `viewportWidth`/`viewportHeight` were removed from the discrete equality gate,
+  so a desktop drag-resize that crosses no breakpoint stops waking every
+  subscriber ~60×/s. Components that relied on `environmentChanged` for live
+  width should override `viewportChanged` instead; discrete breakpoint/orientation/
+  capability flips are unaffected. The snapshot still carries the live width for
+  synchronous `getEnvironment()` reads.
+
 ## [1.0.0-rc08] - 2026-08-24
 
 ### Added
