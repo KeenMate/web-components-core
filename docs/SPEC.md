@@ -758,6 +758,58 @@ fires once immediately with the current snapshot on connect, then on every chang
 own presentation from it (e.g. daterangepicker: `presentation: 'auto'` →
 fullscreen when `env.isTouchPrimary`).
 
+**Two channels — discrete vs continuous (rc09).** The observable splits by
+cadence, because the two things a component asks the environment change at wildly
+different rates. `observeEnvironment` / `environmentChanged(env)` is the
+**discrete** channel: it fires only when a *category* field flips —
+`breakpoint`, `orientation`, `pointer`/`hasCoarsePointer`/`canHover`,
+`isTouchPrimary`. Raw `viewportWidth`/`viewportHeight` are **excluded from its
+equality gate** (`environmentEqual`), so a plain desktop drag-resize that crosses
+no breakpoint no longer wakes it — previously every 1px change passed the gate and
+fired the hook ~60×/s during a drag, on every subscribed component. The snapshot
+still *carries* the live width; the discrete channel just stops firing on it.
+`observeViewport` / `viewportChanged(env)` is the **continuous** channel for the
+few consumers that genuinely track live width (a layout that reflows *within* a
+device class — e.g. drop a calendar from two months to one as its own box
+narrows). It fires on raw size changes, **throttled to one notify per ~30 ms
+(`VIEWPORT_THROTTLE_MS`), leading + trailing** — a steady stream during a drag
+plus a final settled read, never a per-frame flood. Both are override-gated and
+ref-counted over the *same* `matchMedia`/`resize` listeners, so an element that
+overrides neither attaches nothing, and one that overrides only `environmentChanged`
+pays zero per-resize cost (the 30 ms timer never starts). Caveat worth stating:
+both report the **viewport** (`window.innerWidth`), not the element's own box — a
+picker in a narrow sidebar on a wide monitor still reads "wide". Element-box
+observation is the other half (below).
+
+**Element-box reactivity — two tiers (rc09).** Reflowing to your *container*
+rather than the viewport splits into two tiers, and the first is not core's job:
+
+- **Tier 1 — CSS container queries (prefer this).** When the reflow is purely
+  *presentational* (stack columns, hide a label, shrink padding), use
+  `container-type: inline-size` on the host + `@container (max-width: …)` in the
+  component's CSS. It's native, element-box, cheaper than any JS, and fires before
+  paint. Core adds nothing here but the rule of thumb (a CSS authoring guideline,
+  not code) — push as much as possible into this tier.
+- **Tier 2 — the `resized(size)` hook (structural only).** Container queries can't
+  make a JS decision — instantiate *one* calendar component instead of two, render
+  a different button set, feed a width into `reinit()`. For that, overriding the
+  (no-op-default) `BlissElement.resized(size)` hook opts the element into
+  `observeElementSize(this, …)`: a **single, shared, page-wide `ResizeObserver`**
+  (one observer watches every subscribed element, fanned out per target via a
+  `WeakMap`, so N pickers pay for one observer) in `src/environment/element-size.ts`.
+  It fires with the element's real laid-out **border box** shortly after connect
+  (`immediate: false` so the first fire isn't a pre-layout `0×0`), then on box
+  changes, **throttled to ~30 ms (leading + trailing)** with identical-size dedup —
+  the same cadence as `viewportChanged`, which also sidesteps the `ResizeObserver`
+  loop error by deferring reflow out of the callback. `size` is `{ width, height }`
+  in CSS px; for a one-off read use `this.getBoundingClientRect()`. Override-gated
+  and balanced across connect/disconnect like the other environment hooks. SSR-safe
+  (no `ResizeObserver` → one `0×0` fire + no-op unsubscribe).
+
+Rule of thumb: **presentational reflow → container queries; structural reflow →
+`resized()`.** The DRP dropping two months to one (a different number of rendered
+calendars) is structural, so it's a `resized()` consumer.
+
 **Classification vs presentation — two functions, split on purpose (rc07).** The
 "what should this component show" decision is split into a shared *fact* and a
 per-component *policy*:

@@ -650,6 +650,117 @@ describe('environmentChanged hook', () => {
   });
 });
 
+class ViewportElement extends BlissElement {
+  count = 0;
+  protected override viewportChanged(): void {
+    this.count++;
+  }
+}
+define('viewport-element', ViewportElement as unknown as CustomElementConstructor);
+
+describe('viewportChanged hook', () => {
+  it('fires immediately on connect for an overriding element', () => {
+    const el = document.createElement('viewport-element') as ViewportElement;
+    document.body.appendChild(el);
+    expect(el.count).toBe(1);
+    el.remove();
+  });
+
+  it('re-subscribes across a disconnect/reconnect (DOM move)', () => {
+    const el = document.createElement('viewport-element') as ViewportElement;
+    document.body.appendChild(el);
+    el.remove();
+    document.body.appendChild(el);
+    expect(el.count).toBe(2);
+    el.remove();
+  });
+
+  it('does not attach for an element that leaves the hook as the no-op default', () => {
+    const el = document.createElement('plain-element') as PlainElement;
+    expect(() => {
+      document.body.appendChild(el);
+      el.remove();
+    }).not.toThrow();
+    expect((el as unknown as { viewportChanged: unknown }).viewportChanged).toBe(
+      BlissElement.prototype['viewportChanged' as keyof BlissElement],
+    );
+  });
+});
+
+// A minimal controllable ResizeObserver — jsdom ships none.
+class MockRO {
+  static instances: MockRO[] = [];
+  readonly cb: ResizeObserverCallback;
+  readonly observed = new Set<Element>();
+  constructor(cb: ResizeObserverCallback) {
+    this.cb = cb;
+    MockRO.instances.push(this);
+  }
+  observe(el: Element): void {
+    this.observed.add(el);
+  }
+  unobserve(el: Element): void {
+    this.observed.delete(el);
+  }
+  disconnect(): void {
+    this.observed.clear();
+  }
+  emit(...els: Element[]): void {
+    this.cb(els.map((target) => ({ target }) as unknown as ResizeObserverEntry), this as unknown as ResizeObserver);
+  }
+}
+
+class SizedElement extends BlissElement {
+  readonly widths: number[] = [];
+  protected override resized(size: { width: number; height: number }): void {
+    this.widths.push(size.width);
+  }
+}
+define('sized-element', SizedElement as unknown as CustomElementConstructor);
+
+describe('resized hook', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('observes the element on connect and fires on a box change (not before layout)', () => {
+    MockRO.instances = [];
+    vi.stubGlobal('ResizeObserver', MockRO);
+    const el = document.createElement('sized-element') as SizedElement;
+    el.getBoundingClientRect = () => ({ width: 300, height: 100 }) as DOMRect;
+    document.body.appendChild(el);
+    // immediate:false → no pre-layout fire; the observer is watching this element.
+    expect(el.widths).toEqual([]);
+    const ro = MockRO.instances[MockRO.instances.length - 1]!;
+    expect(ro.observed.has(el)).toBe(true);
+    ro.emit(el); // real laid-out box delivered
+    expect(el.widths).toEqual([300]);
+    el.remove();
+  });
+
+  it('unobserves on disconnect', () => {
+    MockRO.instances = [];
+    vi.stubGlobal('ResizeObserver', MockRO);
+    const el = document.createElement('sized-element') as SizedElement;
+    el.getBoundingClientRect = () => ({ width: 300, height: 100 }) as DOMRect;
+    document.body.appendChild(el);
+    const ro = MockRO.instances[MockRO.instances.length - 1]!;
+    el.remove();
+    expect(ro.observed.has(el)).toBe(false);
+  });
+
+  it('does not observe for an element that leaves the hook as the no-op default', () => {
+    MockRO.instances = [];
+    vi.stubGlobal('ResizeObserver', MockRO);
+    const el = document.createElement('plain-element') as PlainElement;
+    document.body.appendChild(el);
+    // No observer is created at all when nothing overrides resized.
+    expect(MockRO.instances).toHaveLength(0);
+    expect((el as unknown as { resized: unknown }).resized).toBe(BlissElement.prototype['resized' as keyof BlissElement]);
+    el.remove();
+  });
+});
+
 describe('define', () => {
   it('is idempotent', () => {
     expect(() => {

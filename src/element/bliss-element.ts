@@ -14,7 +14,8 @@
 import { resolveFromAttribute, resolveFromProperty, type Resolved } from '../inputs/apply.js';
 import type { AttrReader, InputDef } from '../inputs/types.js';
 import { createMicrotaskScheduler, type MicrotaskScheduler } from '../dom/microtask-scheduler.js';
-import { observeEnvironment, type EnvironmentSnapshot } from '../environment/environment.js';
+import { observeEnvironment, observeViewport, type EnvironmentSnapshot } from '../environment/environment.js';
+import { observeElementSize, type ElementSize } from '../environment/element-size.js';
 import { trackInstance, untrackInstance } from '../global/instances.js';
 import { getLoggerBundle } from '../logging/logger-registry.js';
 import type { InstanceLogger, LogLevelDesc } from '../logging/create-loggers.js';
@@ -85,6 +86,10 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
   #reflecting = false;
   /** Unsubscribe from the environment observable; set only while connected AND `environmentChanged` is overridden. */
   #envUnsub?: () => void;
+  /** Unsubscribe from the throttled viewport observable; set only while connected AND `viewportChanged` is overridden. */
+  #viewportUnsub?: () => void;
+  /** Unsubscribe from the per-element ResizeObserver; set only while connected AND `resized` is overridden. */
+  #sizeUnsub?: () => void;
   #internals?: ElementInternals;
   #logId?: string;
   #logLevel?: LogLevelDesc;
@@ -156,12 +161,28 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
     if (this.environmentChanged !== BlissElement.prototype.environmentChanged) {
       this.#envUnsub = observeEnvironment((env) => this.environmentChanged(env));
     }
+    // Same opt-in gate for the throttled continuous-viewport channel — a separate
+    // subscription so an element pays the ~30ms size stream only if it overrides
+    // viewportChanged, not merely environmentChanged.
+    if (this.viewportChanged !== BlissElement.prototype.viewportChanged) {
+      this.#viewportUnsub = observeViewport((env) => this.viewportChanged(env));
+    }
+    // Per-element size (own box, via a shared ResizeObserver) — same opt-in gate.
+    // immediate: false so the first fire carries the real laid-out box (RO's initial
+    // delivery), not a 0×0 read taken before layout during connect.
+    if (this.resized !== BlissElement.prototype.resized) {
+      this.#sizeUnsub = observeElementSize(this, (size) => this.resized(size), { immediate: false });
+    }
   }
 
   disconnectedCallback(): void {
     untrackInstance(this.localName, this);
     this.#envUnsub?.();
     this.#envUnsub = undefined;
+    this.#viewportUnsub?.();
+    this.#viewportUnsub = undefined;
+    this.#sizeUnsub?.();
+    this.#sizeUnsub = undefined;
     this.disconnect();
   }
 
@@ -317,6 +338,44 @@ export abstract class BlissElement<TEvents extends EventMap = EventMap> extends 
    * `reinit()`/`connect()`, call `getEnvironment()` instead.
    */
   protected environmentChanged(_env: EnvironmentSnapshot): void {
+    /* opt-in */
+  }
+
+  /**
+   * React to *continuous* viewport-size changes (SPEC §12.9) — the throttled
+   * companion to {@link environmentChanged}. Overriding this (no-op-default) hook
+   * opts the element into the shared viewport observable, subscribed on every
+   * `connect` and dropped on every `disconnect` (balanced, override-gated, so
+   * non-overriding elements attach no listeners). It fires once immediately with
+   * the current {@link EnvironmentSnapshot} on connect, then on every raw
+   * `viewportWidth`/`viewportHeight` change, **throttled to ~30 ms (leading +
+   * trailing)** — a drag-resize yields a steady stream plus a final settled read,
+   * not a per-frame flood. Use it only when you genuinely track live width (a
+   * layout that reflows *within* a device class); for "which device / breakpoint
+   * am I" use {@link environmentChanged}, which fires only on discrete flips. For
+   * a one-off synchronous read, call `getEnvironment()`.
+   */
+  protected viewportChanged(_env: EnvironmentSnapshot): void {
+    /* opt-in */
+  }
+
+  /**
+   * React to changes in *this element's own box* (SPEC §12.9) — the element-box
+   * companion to {@link viewportChanged} (which reports the window). Use it when a
+   * component reflows to its *container* rather than the viewport (a picker in a
+   * narrow sidebar on a wide monitor). Overriding this (no-op-default) hook opts
+   * the element into a shared page-wide `ResizeObserver`, subscribed on every
+   * `connect` and dropped on every `disconnect` (balanced, override-gated).
+   *
+   * **Prefer CSS container queries first** (`container-type: inline-size` +
+   * `@container`) when the reflow is purely presentational — they're native and
+   * fire before paint. Reach for this hook only when the reflow is *structural*
+   * (different DOM / a JS decision). Fires with the element's real laid-out
+   * border box shortly after connect, then on size changes, **throttled to ~30 ms
+   * (leading + trailing)**; identical consecutive sizes are deduped. For a one-off
+   * synchronous read, call `this.getBoundingClientRect()`.
+   */
+  protected resized(_size: ElementSize): void {
     /* opt-in */
   }
 

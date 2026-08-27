@@ -51,6 +51,7 @@ export type { CssVarFinding } from './dom/css-var-lint.js';
 export {
   getEnvironment,
   observeEnvironment,
+  observeViewport,
   configureBreakpoints,
   classifyDevice,
   TABLET_MIN_SHORT_SIDE,
@@ -65,6 +66,11 @@ export type {
   BreakpointMap,
   DeviceClass,
 } from './environment/environment.js';
+// Per-element size reactivity (own box, via a shared ResizeObserver) — the
+// element-box companion to observeViewport. Prefer CSS container queries when
+// the reflow is presentational; use this for structural (JS) reflow.
+export { observeElementSize } from './environment/element-size.js';
+export type { ElementSize, ElementSizeListener, ObserveElementSizeOptions } from './environment/element-size.js';
 
 // Overlay / fullscreen presentation primitives (SPEC §12.9) — shared by any
 // component that swaps a floating panel for a full-viewport sheet on phones.

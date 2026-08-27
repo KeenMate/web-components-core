@@ -15,9 +15,17 @@
  * touchscreen all fire `change`). SSR-safe: with no `window` (or no
  * `matchMedia`) it returns a static desktop default and a no-op unsubscribe.
  *
+ * Two notification channels, split by cadence: {@link observeEnvironment} fires
+ * only on *discrete* flips (breakpoint, orientation, pointer/hover capability) —
+ * rare, prompt, what a component reconfigures on; {@link observeViewport} fires
+ * on *continuous* raw size changes, throttled to ~30 ms, for the few consumers
+ * that track live width. Raw `viewportWidth`/`viewportHeight` are excluded from
+ * the discrete equality so a drag-resize no longer storms every subscriber.
+ *
  * Zero runtime deps; lives in the main index so any component can read it
- * without an extra import path. Components normally consume it through
- * `BlissElement`'s `environmentChanged()` hook rather than subscribing directly.
+ * without an extra import path. Components normally consume both through
+ * `BlissElement`'s `environmentChanged()` / `viewportChanged()` hooks rather than
+ * subscribing directly.
  */
 
 /** The primary pointing device: `coarse` = touch/stylus, `fine` = mouse/trackpad. */
@@ -102,12 +110,22 @@ const DEFAULT_BREAKPOINTS: BreakpointMap = { mobile: 640, tablet: 1024, desktop:
 /** Breakpoints as `[name, maxWidth]` sorted ascending by width; last entry is the catch-all. */
 let breakpoints: Array<[string, number]> = sortBreakpoints(DEFAULT_BREAKPOINTS);
 
+/** Discrete-change subscribers: notified only when a *category* field flips (see {@link environmentEqual}). */
 const subscribers = new Set<EnvironmentListener>();
+/** Continuous-geometry subscribers: notified on raw viewport-size changes, throttled to {@link VIEWPORT_THROTTLE_MS}. */
+const viewportSubscribers = new Set<EnvironmentListener>();
 /** Cached snapshot while subscribed; `null` when idle (no listeners) so a fresh read recomputes. */
 let current: EnvironmentSnapshot | null = null;
 /** The live `MediaQueryList`s, held so we can detach on the last unsubscribe. */
 let mqls: MediaQueryList[] = [];
 let rafScheduled = false;
+
+/** Throttle window (ms) for the continuous viewport channel — one notify per window, leading + trailing. */
+const VIEWPORT_THROTTLE_MS = 30;
+/** Pending trailing-edge timer for the viewport channel; `undefined` when none is scheduled. */
+let viewportTimer: ReturnType<typeof setTimeout> | undefined;
+/** Timestamp of the last viewport notify, for the leading-edge gate. */
+let lastViewportNotify = 0;
 
 function sortBreakpoints(map: BreakpointMap): Array<[string, number]> {
   return Object.entries(map).sort((a, b) => a[1] - b[1]);
@@ -204,25 +222,74 @@ function computeSnapshot(): EnvironmentSnapshot {
   };
 }
 
-function snapshotsEqual(a: EnvironmentSnapshot, b: EnvironmentSnapshot): boolean {
+/**
+ * Discrete equality: the *category* fields that change rarely (a bucket flip, a
+ * rotation, plugging in a mouse). Raw `viewportWidth`/`viewportHeight` are
+ * DELIBERATELY excluded — they change every frame during a drag-resize, and
+ * routing that through `environmentChanged` fired a per-frame storm on every
+ * component. The continuous size signal lives on its own throttled channel
+ * ({@link viewportEqual} / {@link observeViewport}); the discrete channel only
+ * fires when something a component actually reconfigures on has flipped.
+ */
+function environmentEqual(a: EnvironmentSnapshot, b: EnvironmentSnapshot): boolean {
   return (
     a.pointer === b.pointer &&
     a.hasCoarsePointer === b.hasCoarsePointer &&
     a.canHover === b.canHover &&
     a.isTouchPrimary === b.isTouchPrimary &&
     a.orientation === b.orientation &&
-    a.viewportWidth === b.viewportWidth &&
-    a.viewportHeight === b.viewportHeight &&
     a.breakpoint === b.breakpoint
   );
 }
 
-/** Recompute and, if anything changed, cache + notify every subscriber. */
+/** Continuous equality: just the raw viewport dimensions (the noisy channel). */
+function viewportEqual(a: EnvironmentSnapshot, b: EnvironmentSnapshot): boolean {
+  return a.viewportWidth === b.viewportWidth && a.viewportHeight === b.viewportHeight;
+}
+
+/**
+ * Recompute and notify. The cached snapshot is always refreshed (so a
+ * synchronous `getEnvironment()` between throttled notifies still reads the live
+ * size). Discrete subscribers fire immediately on a category flip; viewport
+ * subscribers fire on a size change, throttled to {@link VIEWPORT_THROTTLE_MS}.
+ */
 function recompute(): void {
   const next = computeSnapshot();
-  if (current && snapshotsEqual(current, next)) return;
+  const prev = current;
   current = next;
-  for (const listener of [...subscribers]) listener(next);
+  if (!prev || !environmentEqual(prev, next)) {
+    for (const listener of [...subscribers]) listener(next);
+  }
+  if (viewportSubscribers.size > 0 && (!prev || !viewportEqual(prev, next))) {
+    scheduleViewportNotify();
+  }
+}
+
+/** Fire the current snapshot at every continuous-viewport subscriber. */
+function fireViewport(): void {
+  const snap = current;
+  if (!snap) return;
+  for (const listener of [...viewportSubscribers]) listener(snap);
+}
+
+/**
+ * Throttle the viewport channel to one notify per {@link VIEWPORT_THROTTLE_MS}
+ * (leading + trailing): fire straight away if the window has elapsed, otherwise
+ * schedule a single trailing notify carrying the latest (settled) size.
+ */
+function scheduleViewportNotify(): void {
+  if (viewportTimer !== undefined) return; // trailing edge already pending
+  const elapsed = Date.now() - lastViewportNotify;
+  if (elapsed >= VIEWPORT_THROTTLE_MS) {
+    lastViewportNotify = Date.now();
+    fireViewport();
+  } else {
+    viewportTimer = setTimeout(() => {
+      viewportTimer = undefined;
+      lastViewportNotify = Date.now();
+      fireViewport();
+    }, VIEWPORT_THROTTLE_MS - elapsed);
+  }
 }
 
 const onMediaChange = (): void => recompute();
@@ -277,7 +344,17 @@ function stop(): void {
     window.removeEventListener('resize', onResize);
   }
   rafScheduled = false;
+  if (viewportTimer !== undefined) {
+    clearTimeout(viewportTimer);
+    viewportTimer = undefined;
+  }
+  lastViewportNotify = 0;
   current = null;
+}
+
+/** Total live subscribers across both channels — the shared listeners live while this is > 0. */
+function subscriberCount(): number {
+  return subscribers.size + viewportSubscribers.size;
 }
 
 /**
@@ -299,7 +376,7 @@ export function getEnvironment(): EnvironmentSnapshot {
  * SSR (fires once with the desktop default, returns a no-op unsubscribe).
  */
 export function observeEnvironment(listener: EnvironmentListener, opts: ObserveOptions = {}): () => void {
-  const first = subscribers.size === 0;
+  const first = subscriberCount() === 0;
   subscribers.add(listener);
   if (first) start();
   if (opts.immediate !== false) listener(getEnvironment());
@@ -309,7 +386,35 @@ export function observeEnvironment(listener: EnvironmentListener, opts: ObserveO
     if (!live) return;
     live = false;
     subscribers.delete(listener);
-    if (subscribers.size === 0) stop();
+    if (subscriberCount() === 0) stop();
+  };
+}
+
+/**
+ * Subscribe to *continuous* viewport-size changes — the noisy companion to
+ * {@link observeEnvironment}. The listener fires immediately with the current
+ * snapshot (unless `immediate: false`), then again whenever `viewportWidth`/
+ * `viewportHeight` change, **throttled to one notify per {@link VIEWPORT_THROTTLE_MS}
+ * (≈30 ms), leading + trailing** — so a drag-resize yields a steady ~33 Hz
+ * stream plus a final settled read, not the per-frame flood raw `resize` would.
+ * Use this only when you genuinely track live element/window width (e.g. a
+ * container-query-style layout); for "which device / breakpoint am I" prefer
+ * {@link observeEnvironment}, which fires only on discrete flips. Shares the same
+ * lazily-started, ref-counted `matchMedia`/`resize` listeners; returns an
+ * unsubscribe. No-op-safe during SSR.
+ */
+export function observeViewport(listener: EnvironmentListener, opts: ObserveOptions = {}): () => void {
+  const first = subscriberCount() === 0;
+  viewportSubscribers.add(listener);
+  if (first) start();
+  if (opts.immediate !== false) listener(getEnvironment());
+
+  let live = true;
+  return () => {
+    if (!live) return;
+    live = false;
+    viewportSubscribers.delete(listener);
+    if (subscriberCount() === 0) stop();
   };
 }
 
@@ -374,6 +479,7 @@ export function classifyDevice(env: EnvironmentSnapshot): DeviceClass {
 /** Test-only: detach listeners and reset breakpoints + cache to defaults. */
 export function __resetEnvironment(): void {
   subscribers.clear();
+  viewportSubscribers.clear();
   stop();
   breakpoints = sortBreakpoints(DEFAULT_BREAKPOINTS);
   osCache = undefined;
