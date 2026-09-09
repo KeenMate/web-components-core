@@ -80,6 +80,17 @@ export { resolvePresentation, resolveMobilePresentation, DEFAULT_PRESENTATION_MA
 export type { MobilePresentation, ResolvedPresentation, PresentationMap, PresentationContext } from './overlay/presentation.js';
 export { lockBodyScroll } from './overlay/scroll-lock.js';
 export { observeKeyboardInset } from './overlay/keyboard-inset.js';
+// Cross-component "one overlay open at a time" coordination (framework-agnostic via a
+// `km-overlay-activated` document event; external code can trigger + observe it too).
+export {
+  registerOverlay,
+  notifyOverlayActivated,
+  dismissAllOverlays,
+  onOverlayActivated,
+  OVERLAY_ACTIVATED_EVENT,
+  ALL_GROUPS,
+} from './overlay/active-overlay.js';
+export type { OverlayHandle, OverlayActivatedDetail } from './overlay/active-overlay.js';
 
 // Logging (SPEC §12.1) — engine is vendored (no `loglevel` dependency); see log-core.ts.
 export { createLoggers, DEFAULT_CATEGORIES, DEFAULT_ENABLED_LEVEL } from './logging/create-loggers.js';

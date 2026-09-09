@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-rc10] - 2026-09-09
+
+### Added
+
+- **Cross-component overlay coordination — `registerOverlay`, `notifyOverlayActivated`,
+  `dismissAllOverlays`, `onOverlayActivated`, `ALL_GROUPS`** (`src/overlay/active-overlay.ts`,
+  exported from the package root). A framework-agnostic "one overlay open at a time" primitive:
+  floating overlays across every KM component — and any *external* popover (Svelte, plain DOM,
+  another framework) — dismiss each other when one opens. There is a single coordination channel:
+  a `document` CustomEvent `km-overlay-activated` (namespaced like `km-log`) carrying
+  `{ source, group }`, so **nothing has to import core to participate** — outside code can both
+  trigger dismissal (dispatch the event, or `notifyOverlayActivated()`) and observe it
+  (`addEventListener`, or `onOverlayActivated()`). `source` is an opaque `===` token so an opener
+  never dismisses itself. **Groups** (`registerOverlay(onDismiss, group)`) scope coordination:
+  opening a group-`A` overlay dismisses only other group-`A` overlays, ungrouped overlays share one
+  default group, and `dismissAllOverlays()` crosses every group via the exported `ALL_GROUPS`
+  wildcard. SSR-safe (no-op without `document`). This is the basis for the single-active-dropdown
+  behaviour being wired into web-multiselect and web-daterangepicker.
+
 ## [1.0.0-rc09] - 2026-08-27
 
 ### Added

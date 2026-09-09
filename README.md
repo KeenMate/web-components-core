@@ -10,6 +10,19 @@ that correctness lives in a single place and can't drift.
 > **[`docs/SPEC.md`](docs/SPEC.md) is the source of truth** for design intent. This
 > README is the tour; read the relevant SPEC section before changing behavior.
 
+## What's New in v1.0.0-rc10
+
+- **Cross-component overlay coordination — one popover open at a time, across frameworks.**
+  New `registerOverlay` / `notifyOverlayActivated` / `dismissAllOverlays` / `onOverlayActivated`
+  (and the `ALL_GROUPS` wildcard) let floating overlays dismiss each other when one opens — every
+  KM component *and* any external popover (a Svelte component, a plain-DOM widget, another
+  framework). Everything routes through one `document` CustomEvent `km-overlay-activated` carrying
+  `{ source, group }`, so outside code can both trigger dismissal and be dismissed *without*
+  importing core. An optional `group` scopes coordination, so two independent sets of controls stay
+  separate; ungrouped overlays share one default group. SSR-safe (no-op without a `document`).
+
+See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
+
 ## What's New in v1.0.0-rc09
 
 - **`viewportChanged(env)` — a throttled, continuous viewport-size hook.** The
@@ -29,18 +42,6 @@ that correctness lives in a single place and can't drift.
 - **`environmentChanged` no longer wakes on raw window resizes.** Viewport width/
   height left its equality gate, so a desktop drag-resize that crosses no
   breakpoint stops firing it ~60×/s. Move live-width logic to `viewportChanged`.
-
-See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
-
-## What's New in v1.0.0-rc08
-
-- **`presentationContext(presentation)` — shared render-context presentation flags.**
-  A tiny helper that builds `{ presentation, isFullscreen, isModal }` from a
-  `ResolvedPresentation`, so every KM component surfaces the *same* shape into its
-  render callbacks instead of re-deriving the booleans. A custom renderer can then
-  show rich content on the desktop floating panel and a leaner variant in the phone
-  fullscreen sheet. Spread it into the per-item context you hand a consumer's
-  callback; it reflects whatever the component's current presentation is.
 
 See [`CHANGELOG.md`](CHANGELOG.md) for the full list.
 
